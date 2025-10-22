@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz App</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilo personalizado para las opciones de respuesta */
+        .opcion-btn {
+            transition: all 0.2s;
+        }
+        /* Clase para la respuesta seleccionada/no revisada */
+        .opcion-btn:not(.correcto):not(.incorrecto):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        /* Clases de estado dinámico */
+        .seleccionada {
+            border: 3px solid #6366f1; /* Indigo */
+        }
+        .correcta {
+            background-color: #10b981 !important; /* Esmeralda 500 */
+            color: white !important;
+            border-color: #059669 !important;
+        }
+        .incorrecto {
+            background-color: #ef4444 !important; /* Rojo 500 */
+            color: white !important;
+            border-color: #dc2626 !important;
+        }
+        .hidden-transition {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: opacity 0.3s ease-out, max-height 0.3s ease-out;
+        }
+        .visible-transition {
+            opacity: 1;
+            max-height: 500px; /* Suficiente para mostrar el contenido */
+        }
+        /* Spinner CSS */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.2);
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Estilos para el modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Barra de Progreso */
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e0e7ff;
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 10px;
+            width: 0%;
+            background-color: #4f46e5;
+            border-radius: 9999px;
+            transition: width 1s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4" style="font-family: 'Inter', sans-serif;">
+
+    <div id="app" class="w-full max-w-2xl bg-white shadow-2xl rounded-xl p-6 md:p-10">
+
+        <!-- Encabezado -->
+        <header class="text-center mb-6 relative">
+            <h1 id="app-title" class="text-3xl font-extrabold text-indigo-700">Quiz App</h1>
+            <div id="connection-status" class="absolute top-0 right-0 text-xs font-bold p-2 rounded-full"></div>
+        </header>
+
+        <!-- Pantalla de Carga -->
+        <div id="loading-screen" class="text-center p-10 bg-indigo-50 rounded-xl">
+            <div id="spinner-container" class="mb-4">
+                <div class="spinner mx-auto"></div>
+            </div>
+            <p id="loading-message" class="text-lg font-medium text-indigo-700 mb-4">Iniciando...</p>
+            <div id="progress-container" class="w-full max-w-xs mx-auto hidden">
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pantalla de Selección de Materia -->
+        <div id="materia-selection-container" class="hidden text-center p-10">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Selecciona una Materia</h2>
+            <div id="materia-buttons" class="space-y-4 max-w-sm mx-auto">
+                <!-- Botones se inyectarán aquí -->
+            </div>
+        </div>
+
+        <!-- Pantalla de Selección de Tema -->
+        <div id="tema-selection-container" class="hidden text-center p-10">
+            <button id="btn-volver-materia"
+                    class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm mb-6">
+                ← Volver a Materias
+            </button>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Selecciona un Tema para <span id="current-materia-name"></span></h2>
+            <div id="tema-buttons" class="space-y-4 max-w-sm mx-auto">
+                <!-- Botones se inyectarán aquí (o el mensaje de carga) -->
+            </div>
+            <p id="no-temas-message" class="text-gray-500 mt-6 hidden">No hay temas guardados.</p>
+             <button id="btn-go-to-editor" class="mt-8 py-3 px-6 bg-gray-700 text-white font-bold rounded-lg shadow-md hover:bg-gray-800 transition w-full">
+                Ir al Editor para Agregar Preguntas
+            </button>
+        </div>
+
+
+        <!-- Botón de Alternancia de Vista (visible solo en quiz-container) -->
+        <div class="mb-6 flex justify-between hidden" id="quiz-header-buttons">
+             <button id="btn-cambiar-materia"
+                    class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
+                Cambiar Materia
+            </button>
+             <button id="btn-alternar-vista"
+                    class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
+                Mostrar Editor
+            </button>
+        </div>
+
+        <!-- Contenedor del Editor de Preguntas (Panel de Gestión) -->
+        <div id="editor-container" class="hidden">
+            <h2 class="text-2xl font-bold text-indigo-600 mb-4">Panel de Gestión (<span id="editor-materia-nombre">Materia</span>)</h2>
+            
+            <!-- ✨ SECCIÓN: GENERACIÓN DE PREGUNTAS CON IA ✨ -->
+            <div class="p-4 border-2 border-dashed border-indigo-300 rounded-lg mb-6 bg-indigo-50">
+                 <h3 class="text-xl font-bold text-indigo-700 mb-3">✨ Generador de Preguntas con IA</h3>
+                 <p class="text-sm text-gray-600 mb-3">¿Necesitas preguntas para un tema nuevo? Escríbelo aquí y la IA creará 3 preguntas para ti.</p>
+                 <div class="flex space-x-2">
+                     <input type="text" id="ia-generate-topic-input" placeholder="Ej: Intoxicación por Plomo" class="flex-grow p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500">
+                     <button id="btn-ia-generate" class="py-3 px-5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition flex items-center justify-center disabled:bg-gray-400">
+                        <span id="ia-generate-text">Generar</span>
+                        <div id="ia-generate-spinner" class="spinner ml-2 hidden" style="border-top-color: white;"></div>
+                     </button>
+                 </div>
+            </div>
+            
+            <!-- Botón de Alternancia a Carga Masiva -->
+            <button id="btn-toggle-carga-masiva" class="w-full py-2 mb-4 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition">
+                Mostrar/Ocultar Carga Masiva de Texto
+            </button>
+
+            <!-- Contenedor de Carga Masiva (Inicialmente oculto) -->
+            <div id="carga-masiva-container" class="p-4 border border-gray-200 rounded-lg mb-6 hidden">
+                <h3 class="text-lg font-bold text-gray-700 mb-3">Carga Masiva desde Texto</h3>
+                <div class="mb-4">
+                     <label for="tema-input" class="block text-sm font-medium text-gray-700 mb-1">Tema a Asignar (Obligatorio)</label>
+                     <input type="text" id="tema-input" list="temas-existentes" placeholder="Escribe o selecciona un tema" 
+                            class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500">
+                     <datalist id="temas-existentes"></datalist>
+                </div>
+                
+                <textarea id="texto-pdf" rows="6" placeholder="Pega aquí el texto sin formato de tus preguntas (Ej: 'Pregunta 1. ¿Antídoto...? a) Opción b) Correcta c) Opción... JUSTIFICACIÓN: ...') "
+                          class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 mb-4"></textarea>
+
+                <button id="btn-analizar"
+                        class="w-full py-3 px-6 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition duration-150 ease-in-out flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        <span id="analizar-text">Analizar y Cargar Preguntas</span>
+                        <div id="analizar-spinner" class="spinner ml-3 hidden" style="border-top-color: white;"></div>
+                </button>
+                <p class="text-gray-500 text-xs mt-2 text-center">Esta función usa IA para estructurar el texto.</p>
+            </div>
+
+
+            <div id="editor-feedback" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
+
+            <!-- Panel de Gestión de Preguntas -->
+            <h3 class="text-xl font-bold text-gray-700 my-4 border-t pt-4">Preguntas Guardadas (<span id="total-preguntas-editor">0</span>)</h3>
+            <div id="gestion-preguntas-container" class="space-y-3">
+                 <!-- Las preguntas guardadas se listarán aquí por tema -->
+            </div>
+
+        </div>
+
+        <!-- Contenedor del Cuestionario (Inicialmente oculto) -->
+        <div id="quiz-container" class="hidden">
+             <div class="flex justify-between items-center mt-2 mb-4">
+                 <p class="text-sm font-semibold text-indigo-700">Tema Actual: <span id="current-tema-name" class="text-indigo-900 font-bold"></span></p>
+                 <div id="puntaje-container" class="text-xl font-semibold text-gray-700">
+                    Puntaje: <span id="puntaje">0</span> / <span id="total-preguntas">0</span>
+                </div>
+            </div>
+            <!-- Área de la Pregunta -->
+            <div class="bg-indigo-50 p-6 rounded-lg shadow-inner mb-6 transition-all duration-300">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p id="contador-pregunta" class="text-sm font-medium text-indigo-500 mb-2"></p>
+                        <h2 id="pregunta-texto" class="text-xl font-bold text-gray-800">Cargando pregunta...</h2>
+                    </div>
+                     <!-- ✨ BOTÓN: PISTA ✨ -->
+                    <button id="btn-pista" class="py-2 px-4 bg-yellow-400 text-yellow-900 text-sm font-semibold rounded-full hover:bg-yellow-500 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Pista ✨</button>
+                </div>
+                 <!-- Contenedor para la Pista de la IA -->
+                 <div id="pista-container" class="mt-3 p-3 bg-yellow-100 text-yellow-800 text-sm rounded-lg border border-yellow-300 hidden"></div>
+            </div>
+
+            <!-- Área de Opciones -->
+            <div id="opciones-container" class="space-y-4">
+                <!-- Las opciones se inyectarán aquí por JavaScript -->
+            </div>
+
+            <!-- Área de Retroalimentación/Mensaje -->
+            <div id="feedback-container" class="mt-6 hidden-transition">
+                <p id="feedback-texto" class="p-3 rounded-lg text-center font-bold"></p>
+                <div id="justificacion-box" class="mt-4 p-4 bg-gray-100 rounded-lg border border-gray-300 text-gray-700 text-sm hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                             <p class="font-bold text-indigo-600 mb-1">Justificación:</p>
+                             <p id="justificacion-texto"></p>
+                        </div>
+                        <div class="flex flex-col space-y-2 ml-4 flex-shrink-0">
+                            <button id="btn-eli5" class="py-1 px-3 text-xs bg-teal-400 text-teal-900 font-semibold rounded-full hover:bg-teal-500 transition shadow-sm">Explícamelo Fácil ✨</button>
+                            <button id="btn-verify-quiz" class="py-1 px-3 text-xs bg-yellow-400 text-yellow-900 font-semibold rounded-full hover:bg-yellow-500 transition shadow-sm" style="display: none;">Verificar con IA ✨</button>
+                        </div>
+                    </div>
+                    <!-- Contenedor para la explicación fácil de la IA -->
+                    <div id="eli5-container" class="mt-3 pt-3 border-t border-gray-300 text-sm text-teal-800 hidden"></div>
+                    <div id="verify-quiz-feedback" class="mt-2 text-xs text-center font-medium"></div>
+                </div>
+            </div>
+
+            <!-- Botón de Acción -->
+            <div class="mt-8 flex justify-center">
+                <button id="btn-siguiente" disabled
+                        class="w-full py-3 px-6 bg-gray-300 text-gray-700 font-bold rounded-lg shadow-md hover:bg-gray-400 transition duration-150 ease-in-out disabled:bg-gray-300 disabled:cursor-not-allowed">
+                    Siguiente Pregunta
+                </button>
+            </div>
+        </div>
+
+        <!-- Pantalla de Resultados Finales -->
+        <div id="resultados-container" class="text-center p-10 hidden">
+            <h2 class="text-3xl font-bold text-indigo-700 mb-4">¡Cuestionario Terminado!</h2>
+            <p class="text-xl text-gray-600 mb-6">Tu puntaje final es:</p>
+            <p id="resultado-final" class="text-6xl font-extrabold text-green-600 mb-8">0/0</p>
+            <button id="btn-reiniciar"
+                    class="py-3 px-8 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 transition duration-150 ease-in-out">
+                Volver a Empezar
+            </button>
+        </div>
+        
+        <!-- MODAL DE EDICIÓN (Inicialmente oculto) -->
+        <div id="edit-modal-overlay" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 class="text-2xl font-bold text-indigo-600 mb-4">Editar Pregunta</h3>
+                <div class="space-y-4">
+                    <input type="hidden" id="edit-question-id">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Pregunta:</label>
+                        <textarea id="edit-pregunta" rows="3" class="w-full p-2 border rounded-lg"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tema:</label>
+                        <input type="text" id="edit-tema" class="w-full p-2 border rounded-lg" readonly>
+                    </div>
+
+                    <div id="edit-opciones-container">
+                        <label class="block text-sm font-medium text-gray-700">Opciones (Marca Correcta en el selector):</label>
+                        <!-- Opciones se inyectarán aquí -->
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Índice Correcto (0, 1, 2, 3):</label>
+                        <select id="edit-correcta-index" class="w-full p-2 border rounded-lg">
+                            <option value="0">Opción 1</option>
+                            <option value="1">Opción 2</option>
+                            <option value="2">Opción 3</option>
+                            <option value="3">Opción 4</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Justificación:</label>
+                        <textarea id="edit-justificacion" rows="4" class="w-full p-2 border rounded-lg"></textarea>
+                    </div>
+                </div>
+
+                <div id="edit-feedback" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+
+                <div class="flex justify-between mt-6 space-x-3">
+                    <button id="btn-verify-ia" class="flex-1 py-2 px-4 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition disabled:bg-gray-400">
+                        ✨ Verificar con IA
+                    </button>
+                    <button id="btn-save-edit" class="flex-1 py-2 px-4 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">
+                        Guardar Cambios
+                    </button>
+                    <button id="btn-cancel-edit" class="py-2 px-4 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        // --- CONFIGURACIÓN DE LA APP ---
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbweDwC84xw7jJcOuo80H2Z0bQD70Og6jIv8P96IgYfV150NQN6ARL2RnZxW3KKEVMnkeg/exec";
+        
+        const MATERIAS = {
+            'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
+            'oftalmologia': { name: 'Oftalmología', color: 'bg-teal-600', hover: 'hover:bg-teal-700' }
+        };
+        
+        // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
+        let allQuestionsFromSheet = []; // Almacena TODAS las preguntas cargadas desde la hoja de cálculo
+        let preguntasMateriaCompleta = [];
+        let preguntas = [];
+        let currentMateria = null; 
+        let currentTema = null; 
+        let indicePreguntaActual = 0;
+        let puntaje = 0;
+        let seleccionActual = null;
+        let respuestaComprobada = false;
+        let vistaActual = 'quiz'; 
+
+        // --- REFERENCIAS DEL DOM ---
+        const appTitle = document.getElementById('app-title');
+        const loadingScreen = document.getElementById('loading-screen');
+        const loadingMessage = document.getElementById('loading-message');
+        const materiaSelectionContainer = document.getElementById('materia-selection-container');
+        const materiaButtons = document.getElementById('materia-buttons');
+        const temaSelectionContainer = document.getElementById('tema-selection-container');
+        const temaButtons = document.getElementById('tema-buttons');
+        const currentMateriaName = document.getElementById('current-materia-name');
+        const noTemasMessage = document.getElementById('no-temas-message');
+        const quizContainer = document.getElementById('quiz-container');
+        const resultadosContainer = document.getElementById('resultados-container');
+        const preguntaTexto = document.getElementById('pregunta-texto');
+        const opcionesContainer = document.getElementById('opciones-container');
+        const contadorPregunta = document.getElementById('contador-pregunta');
+        const puntajeSpan = document.getElementById('puntaje');
+        const totalPreguntasSpan = document.getElementById('total-preguntas');
+        const feedbackContainer = document.getElementById('feedback-container');
+        const feedbackTexto = document.getElementById('feedback-texto');
+        const justificacionBox = document.getElementById('justificacion-box');
+        const justificacionTexto = document.getElementById('justificacion-texto');
+        const btnSiguiente = document.getElementById('btn-siguiente');
+        const btnReiniciar = document.getElementById('btn-reiniciar');
+        const resultadoFinal = document.getElementById('resultado-final');
+        const editorContainer = document.getElementById('editor-container');
+        const btnAlternarVista = document.getElementById('btn-alternar-vista');
+        const btnCambiarMateria = document.getElementById('btn-cambiar-materia');
+        const btnVolverMateria = document.getElementById('btn-volver-materia');
+        const quizHeaderButtons = document.getElementById('quiz-header-buttons');
+        const editorMateriaNombre = document.getElementById('editor-materia-nombre');
+        const editorFeedback = document.getElementById('editor-feedback');
+        const currentTemaName = document.getElementById('current-tema-name');
+        const totalPreguntasEditor = document.getElementById('total-preguntas-editor');
+        const gestionPreguntasContainer = document.getElementById('gestion-preguntas-container');
+        const connectionStatus = document.getElementById('connection-status');
+        const btnGoToEditor = document.getElementById('btn-go-to-editor');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const spinnerContainer = document.getElementById('spinner-container');
+        
+        const editModalOverlay = document.getElementById('edit-modal-overlay');
+        const editPregunta = document.getElementById('edit-pregunta');
+        const editTema = document.getElementById('edit-tema');
+        const editOpcionesContainer = document.getElementById('edit-opciones-container');
+        const editCorrectaIndex = document.getElementById('edit-correcta-index');
+        const editJustificacion = document.getElementById('edit-justificacion');
+        const editQuestionId = document.getElementById('edit-question-id');
+        const btnSaveEdit = document.getElementById('btn-save-edit');
+        const btnCancelEdit = document.getElementById('btn-cancel-edit');
+        const btnVerifyIa = document.getElementById('btn-verify-ia');
+        const editFeedback = document.getElementById('edit-feedback');
+        
+        const btnPista = document.getElementById('btn-pista');
+        const pistaContainer = document.getElementById('pista-container');
+        const btnEli5 = document.getElementById('btn-eli5');
+        const eli5Container = document.getElementById('eli5-container');
+        const btnIaGenerate = document.getElementById('btn-ia-generate');
+        const iaGenerateTopicInput = document.getElementById('ia-generate-topic-input');
+        const iaGenerateSpinner = document.getElementById('ia-generate-spinner');
+        const iaGenerateText = document.getElementById('ia-generate-text');
+        const btnVerifyQuiz = document.getElementById('btn-verify-quiz');
+        const verifyQuizFeedback = document.getElementById('verify-quiz-feedback');
+        
+        const btnToggleCargaMasiva = document.getElementById('btn-toggle-carga-masiva');
+        const cargaMasivaContainer = document.getElementById('carga-masiva-container');
+        const temaInput = document.getElementById('tema-input');
+        const textoPdf = document.getElementById('texto-pdf');
+        const btnAnalizar = document.getElementById('btn-analizar');
+        const analizarText = document.getElementById('analizar-text');
+        const analizarSpinner = document.getElementById('analizar-spinner');
+        const temasExistentesDatalist = document.getElementById('temas-existentes');
+
+
+        // --- GOOGLE SHEETS Y PERSISTENCIA DE DATOS ---
+        function updateConnectionStatus(status, message = '') {
+            connectionStatus.classList.remove('bg-yellow-200', 'text-yellow-800', 'bg-green-200', 'text-green-800', 'bg-red-200', 'text-red-800');
+            if (status === 'connecting') {
+                connectionStatus.textContent = '🟡 Conectando...';
+                connectionStatus.classList.add('bg-yellow-200', 'text-yellow-800');
+            } else if (status === 'online') {
+                connectionStatus.textContent = '✅ Sincronizado';
+                connectionStatus.classList.add('bg-green-200', 'text-green-800');
+            } else if (status === 'offline') {
+                connectionStatus.textContent = '⚠️ Guardado Local';
+                connectionStatus.classList.add('bg-red-200', 'text-red-800');
+            }
+        }
+        
+        async function initApp() {
+            updateConnectionStatus('connecting');
+            loadingScreen.classList.remove('hidden');
+            loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
+                const response = await fetch(SCRIPT_URL + '?cachebust=' + new Date().getTime(), { cache: 'no-store' });
+                if (!response.ok) throw new Error('No se pudo conectar con la base de datos en la nube.');
+                
+                loadingMessage.textContent = 'Paso 3: Conexión exitosa. Buscando preguntas...';
+                spinnerContainer.classList.add('hidden');
+                progressContainer.classList.remove('hidden');
+                progressBar.style.width = '50%';
+
+                const rawData = await response.json();
+                allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
+
+                localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
+                progressBar.style.width = '100%';
+                loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas! Organizando...`;
+                
+                console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas válidas en total desde Google Sheets.`);
+                updateConnectionStatus('online');
+                
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                showMateriaSelection();
+
+            } catch (error) {
+                console.error("Error al inicializar la aplicación:", error);
+                loadingMessage.textContent = "Error al conectar con la nube. Cargando desde guardado local...";
+                updateConnectionStatus('offline');
+                
+                const localData = localStorage.getItem('quiz_data_backup');
+                if(localData) {
+                    allQuestionsFromSheet = JSON.parse(localData);
+                    loadingMessage.textContent = `¡Éxito! Se cargaron ${allQuestionsFromSheet.length} preguntas del guardado local.`;
+                } else {
+                    loadingMessage.textContent = "No se encontró un guardado local. La app iniciará vacía.";
+                }
+                
+                setTimeout(() => showMateriaSelection(), 2000);
+            }
+        }
+        
+        async function saveAllQuestionsToSheet(questionsList) {
+            // Guardado Local Inmediato
+            localStorage.setItem('quiz_data_backup', JSON.stringify(questionsList));
+            allQuestionsFromSheet = questionsList;
+            preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
+            renderGestionPreguntas();
+
+            updateConnectionStatus('connecting');
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(questionsList)
+                });
+                
+                console.log("Petición de guardado enviada a Google Sheets.");
+                updateConnectionStatus('online');
+                setFeedback('¡Éxito! Guardado en la nube y localmente.', false);
+                return true;
+            } catch (error) {
+                console.error("Error al guardar preguntas en la nube:", error);
+                setFeedback("Advertencia: Falló el guardado en la nube. Tus cambios están seguros en este dispositivo.", true);
+                updateConnectionStatus('offline');
+                return false;
+            }
+        }
+
+        // --- FUNCIONES DE GESTIÓN (EDITAR/ELIMINAR) ---
+        
+        function renderGestionPreguntas() {
+            gestionPreguntasContainer.innerHTML = '';
+            totalPreguntasEditor.textContent = preguntasMateriaCompleta.length;
+
+            if (preguntasMateriaCompleta.length === 0) {
+                gestionPreguntasContainer.innerHTML = '<p class="text-gray-500 text-center py-4">Aún no hay preguntas guardadas para esta materia.</p>';
+                return;
+            }
+
+            const preguntasPorTema = preguntasMateriaCompleta.reduce((acc, q) => {
+                const tema = (q.tema || 'Sin Tema').trim();
+                if (!acc[tema]) acc[tema] = [];
+                acc[tema].push(q); 
+                return acc;
+            }, {});
+
+            let uniqueIdCounter = 0; 
+
+            Object.entries(preguntasPorTema).sort(([a], [b]) => a.localeCompare(b)).forEach(([tema, listaPreguntas]) => {
+                const collapseId = `tema-collapse-${uniqueIdCounter++}`;
+                
+                const temaHeader = document.createElement('button');
+                temaHeader.classList.add('flex', 'justify-between', 'items-center', 'w-full', 'p-3', 'bg-gray-100', 'text-gray-700', 'font-semibold', 'rounded-lg', 'hover:bg-gray-200', 'transition');
+                temaHeader.innerHTML = `
+                    <span>${tema} (${listaPreguntas.length} preguntas)</span>
+                    <span id="icon-${collapseId}" class="transform transition duration-300">▼</span>
+                `;
+                temaHeader.setAttribute('data-target', collapseId);
+                gestionPreguntasContainer.appendChild(temaHeader);
+
+                const temaBody = document.createElement('div');
+                temaBody.id = collapseId;
+                temaBody.classList.add('p-3', 'border-t', 'border-gray-200', 'space-y-3', 'hidden');
+                gestionPreguntasContainer.appendChild(temaBody);
+                
+                temaHeader.addEventListener('click', () => {
+                    const isHidden = temaBody.classList.toggle('hidden');
+                    document.getElementById(`icon-${collapseId}`).style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+                });
+
+                listaPreguntas.forEach((q, index) => {
+                    const qElement = document.createElement('div');
+                    qElement.classList.add('p-3', 'bg-white', 'border', 'rounded-lg', 'shadow-sm');
+                    const respuestaCorrecta = (typeof q.correctaindex === 'number' && q.opciones && q.opciones[q.correctaindex]) ? q.opciones[q.correctaindex] : 'Índice no válido';
+                    qElement.innerHTML = `
+                        <p class="text-sm font-bold text-indigo-700 mb-2">${index + 1}. ${q.pregunta}</p>
+                        <p class="text-xs text-gray-600 mb-2">Respuesta: ${respuestaCorrecta} </p>
+                        <div class="flex space-x-2 justify-end">
+                            <button data-id="${q.id}" class="btn-editar py-1 px-3 text-xs bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition">Editar</button>
+                            <button data-id="${q.id}" class="btn-eliminar py-1 px-3 text-xs bg-red-500 text-white rounded-md hover:bg-red-600 transition">Eliminar</button>
+                        </div>
+                    `;
+                    temaBody.appendChild(qElement);
+                });
+            });
+            
+            document.querySelectorAll('.btn-editar').forEach(btn => btn.addEventListener('click', openEditModal));
+            document.querySelectorAll('.btn-eliminar').forEach(btn => btn.addEventListener('click', deleteQuestion));
+        }
+
+        function openEditModal(event) {
+            const questionId = parseInt(event.target.dataset.id);
+            const question = allQuestionsFromSheet.find(q => q.id === questionId);
+
+            if (!question) {
+                setFeedback("Error: Pregunta no encontrada para edición.", true);
+                return;
+            }
+            
+            editQuestionId.value = questionId;
+            editPregunta.value = question.pregunta;
+            editTema.value = question.tema || 'Sin Tema';
+            editCorrectaIndex.value = question.correctaindex;
+            editJustificacion.value = question.justificacion || '';
+            
+            editOpcionesContainer.innerHTML = '';
+            (question.opciones || []).forEach((opcion, i) => {
+                const div = document.createElement('div');
+                div.classList.add('flex', 'items-center', 'space-x-2', 'mb-2');
+                div.innerHTML = `
+                    <span class="w-10 text-right text-sm font-medium text-gray-500">Opción ${i + 1}:</span>
+                    <input type="text" id="edit-opcion-${i}" value="${opcion}" class="flex-grow p-2 border rounded-lg edit-opcion-input">
+                `;
+                editOpcionesContainer.appendChild(div);
+            });
+            
+            editFeedback.classList.add('hidden');
+            editModalOverlay.classList.remove('hidden');
+        }
+
+        async function saveEditChanges() {
+            const questionId = parseInt(editQuestionId.value);
+            const questionIndex = allQuestionsFromSheet.findIndex(q => q.id === questionId);
+
+            if (questionIndex === -1) {
+                setEditFeedback("Error: Índice de pregunta no válido.", true);
+                return;
+            }
+
+            const newOpciones = [];
+            const opcionInputs = document.querySelectorAll('.edit-opcion-input');
+            opcionInputs.forEach(input => newOpciones.push(input.value.trim()));
+            
+            const updatedQuestion = {
+                ...allQuestionsFromSheet[questionIndex],
+                pregunta: editPregunta.value.trim(),
+                opciones: newOpciones,
+                correctaindex: parseInt(editCorrectaIndex.value),
+                justificacion: editJustificacion.value.trim()
+            };
+
+            if (updatedQuestion.pregunta.length < 5 || updatedQuestion.opciones.some(o => !o)) {
+                setEditFeedback("La pregunta y las opciones no pueden estar vacías.", true);
+                return;
+            }
+            
+            const updatedList = [...allQuestionsFromSheet];
+            updatedList[questionIndex] = updatedQuestion;
+
+            const success = await saveAllQuestionsToSheet(updatedList);
+            
+            if (success) {
+                setFeedback(`¡Éxito! La pregunta del tema "${updatedQuestion.tema}" fue actualizada.`, false);
+                editModalOverlay.classList.add('hidden');
+            } else {
+                 setEditFeedback("Error al guardar los cambios en la base de datos.", true);
+            }
+        }
+
+        async function deleteQuestion(event) {
+            const questionId = parseInt(event.target.dataset.id);
+            
+            if (!confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) return;
+
+            const updatedList = allQuestionsFromSheet.filter(q => q.id !== questionId);
+            const success = await saveAllQuestionsToSheet(updatedList);
+            
+            if (success) {
+                setFeedback(`¡Éxito! Se eliminó la pregunta de la lista.`, false);
+            }
+        }
+        
+        function setEditFeedback(message, isError = false) {
+             editFeedback.textContent = message;
+             editFeedback.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+             if (isError) {
+                 editFeedback.classList.add('bg-red-100', 'text-red-700');
+             } else {
+                 editFeedback.classList.add('bg-green-100', 'text-green-700');
+             }
+        }
+        
+        // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
+
+        function showMateriaSelection() {
+            loadingScreen.classList.add('hidden');
+            quizContainer.classList.add('hidden');
+            editorContainer.classList.add('hidden');
+            resultadosContainer.classList.add('hidden');
+            quizHeaderButtons.classList.add('hidden');
+            temaSelectionContainer.classList.add('hidden');
+            
+            materiaSelectionContainer.classList.remove('hidden');
+
+            appTitle.textContent = "Selección de Materia";
+            materiaButtons.innerHTML = ''; 
+
+            Object.keys(MATERIAS).forEach(materiaId => {
+                const config = MATERIAS[materiaId];
+                const button = document.createElement('button');
+                button.textContent = config.name;
+                button.classList.add(
+                    'w-full', 'py-4', 'px-6', 'text-white', 'font-bold', 'rounded-lg', 'shadow-lg',
+                    config.color, config.hover, 'transition', 'duration-150', 'ease-in-out'
+                );
+                button.addEventListener('click', () => selectMateria(materiaId));
+                materiaButtons.appendChild(button);
+            });
+        }
+
+        function selectMateria(materiaId) {
+            currentMateria = materiaId;
+            preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === materiaId);
+            
+            const materiaConfig = MATERIAS[materiaId];
+            
+            temaSelectionContainer.classList.remove('hidden');
+            materiaSelectionContainer.classList.add('hidden');
+            
+            appTitle.textContent = `Selección de Tema: ${materiaConfig.name}`;
+            editorMateriaNombre.textContent = materiaConfig.name;
+            currentMateriaName.textContent = materiaConfig.name;
+
+            renderGestionPreguntas();
+            showTemaSelection(); 
+        }
+
+        function showTemaSelection() {
+            quizContainer.classList.add('hidden');
+            editorContainer.classList.add('hidden');
+            resultadosContainer.classList.add('hidden');
+            quizHeaderButtons.classList.add('hidden');
+            
+            temaSelectionContainer.classList.remove('hidden');
+            temaButtons.innerHTML = '';
+            
+            const temasUnicos = getUniqueThemes();
+            const materiaConfig = MATERIAS[currentMateria];
+
+            if (temasUnicos.length > 0) {
+                noTemasMessage.classList.add('hidden');
+                temasUnicos.forEach(tema => {
+                    const count = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema).length;
+                    const button = document.createElement('button');
+                    button.innerHTML = `${tema} <span class="text-sm font-normal">(${count} preguntas)</span>`;
+                    button.classList.add(
+                        'w-full', 'py-4', 'px-6', 'text-white', 'font-bold', 'rounded-lg', 'shadow-lg',
+                        materiaConfig.color, materiaConfig.hover, 'transition', 'duration-150', 'ease-in-out', 'text-left', 'flex', 'justify-between', 'items-center'
+                    );
+                    button.addEventListener('click', () => selectTema(tema));
+                    temaButtons.appendChild(button);
+                });
+            } else {
+                noTemasMessage.classList.remove('hidden');
+            }
+            btnGoToEditor.style.display = 'block';
+        }
+        
+        function selectTema(tema) {
+            currentTema = tema;
+            currentTemaName.textContent = tema;
+            temaSelectionContainer.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+            quizHeaderButtons.classList.remove('hidden');
+            
+            preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema);
+            reiniciarCuestionario();
+        }
+
+        function alternarVista() {
+            if (vistaActual === 'quiz') {
+                vistaActual = 'editor';
+                quizContainer.classList.add('hidden');
+                resultadosContainer.classList.add('hidden');
+                editorContainer.classList.remove('hidden');
+                btnAlternarVista.textContent = 'Mostrar Cuestionario';
+                editorFeedback.classList.add('hidden'); 
+                populateTemaDatalist();
+            } else {
+                 if(!currentTema && preguntasMateriaCompleta.length > 0) {
+                    showTemaSelection();
+                    return;
+                }
+                vistaActual = 'quiz';
+                editorContainer.classList.add('hidden');
+                quizContainer.classList.remove('hidden');
+                btnAlternarVista.textContent = 'Mostrar Editor';
+                if (indicePreguntaActual < preguntas.length) {
+                    cargarPregunta();
+                } else {
+                    mostrarResultados();
+                }
+            }
+        }
+        
+        function populateTemaDatalist() {
+            temasExistentesDatalist.innerHTML = '';
+            const temasUnicos = getUniqueThemes();
+            temasUnicos.forEach(tema => {
+                const option = document.createElement('option');
+                option.value = tema;
+                temasExistentesDatalist.appendChild(option);
+            });
+        }
+
+        function setFeedback(message, isError = false) {
+            editorFeedback.textContent = message;
+            editorFeedback.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            if (isError) {
+                editorFeedback.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                editorFeedback.classList.add('bg-green-100', 'text-green-700');
+            }
+        }
+        
+        function getUniqueThemes() {
+            return [...new Set(preguntasMateriaCompleta.map(p => (p.tema || '').trim()).filter(t => t))].sort();
+        }
+        
+        // --- FUNCIONES DE ROBUSTEZ Y API ---
+
+        function cleanJsonString(jsonString) {
+            if (!jsonString) return '';
+            let cleaned = jsonString.trim();
+            if (cleaned.startsWith('```')) {
+                const firstNewline = cleaned.indexOf('\n');
+                const lastFence = cleaned.lastIndexOf('```');
+                if (firstNewline !== -1 && lastFence !== -1 && lastFence > firstNewline) {
+                    cleaned = cleaned.substring(firstNewline + 1, lastFence).trim();
+                } else {
+                    cleaned = cleaned.replace(/^```(json)?\s*/i, '').replace(/\s*```$/, '').trim();
+                }
+            }
+            return cleaned;
+        }
+
+        async function fetchWithRetry(url, options, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) {
+                        return response;
+                    } else {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP Error ${response.status}: ${errorText.substring(0, 100)}...`);
+                    }
+                } catch (error) {
+                    if (i === retries - 1) {
+                        throw error;
+                    }
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 500;
+                    console.error(`Intento ${i + 1} fallido, reintentando en ${delay / 1000}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+            throw new Error("Fallo en la comunicación de la API después de múltiples reintentos.");
+        }
+        
+        // --- ✨ NUEVAS FUNCIONES DE IA (GEMINI API) ✨ ---
+        
+        async function getHint() {
+            const pregunta = preguntas[indicePreguntaActual];
+            if (!pregunta) return;
+
+            btnPista.disabled = true;
+            pistaContainer.textContent = 'Buscando una pista...';
+            pistaContainer.classList.remove('hidden');
+
+            const systemPrompt = "Eres un tutor servicial. Para la siguiente pregunta de opción múltiple, proporciona una pista corta y sutil de una sola oración que guíe al usuario hacia la respuesta correcta sin revelarla directamente. Responde en español.";
+            const userQuery = `Pregunta: "${pregunta.pregunta}" Opciones: ${pregunta.opciones.join(', ')}`;
+            
+            const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                const hint = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (hint) {
+                    pistaContainer.textContent = `Pista: ${hint}`;
+                } else {
+                    throw new Error("La IA no proporcionó una pista.");
+                }
+            } catch (error) {
+                console.error("Error al obtener pista:", error);
+                pistaContainer.textContent = 'No se pudo obtener una pista en este momento.';
+            }
+        }
+        
+        async function getELI5Explanation() {
+            const pregunta = preguntas[indicePreguntaActual];
+            if (!pregunta || !pregunta.justificacion) return;
+
+            btnEli5.disabled = true;
+            eli5Container.innerHTML = '<div class="spinner" style="border-top-color: #14b8a6;"></div>';
+            eli5Container.classList.remove('hidden');
+
+            const systemPrompt = "Explica el siguiente concepto médico o científico como si el lector tuviera 5 años (ELI5). Usa una analogía simple y un lenguaje muy claro. Responde en español.";
+            const userQuery = `Concepto: "${pregunta.justificacion}"`;
+
+            const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            try {
+                const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                const explanation = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (explanation) {
+                    eli5Container.innerHTML = `<p><span class="font-bold">En simple:</span> ${explanation}</p>`;
+                } else {
+                    throw new Error("La IA no proporcionó una explicación.");
+                }
+            } catch (error) {
+                console.error("Error al obtener explicación ELI5:", error);
+                eli5Container.textContent = 'No se pudo generar la explicación simplificada.';
+            } finally {
+                btnEli5.disabled = false;
+            }
+        }
+        
+        async function generateReviewQuestions() {
+            const topic = iaGenerateTopicInput.value.trim();
+            if (topic.length < 3) {
+                setFeedback("Por favor, introduce un tema válido para generar preguntas.", true);
+                return;
+            }
+            
+            btnIaGenerate.disabled = true;
+            iaGenerateSpinner.classList.remove('hidden');
+            iaGenerateText.textContent = 'Generando';
+
+            const materiaName = MATERIAS[currentMateria].name;
+            const systemPrompt = `Eres un experto en ${materiaName}. Tu tarea es generar 3 preguntas de opción múltiple sobre un tema específico. Cada pregunta debe tener una pregunta, una lista de 4 opciones, el índice de la respuesta correcta (0-3), y una justificación clara. El campo 'tema' debe ser el tema proporcionado por el usuario. Devuelve estrictamente una matriz JSON con el esquema especificado, sin texto adicional.`;
+            const userQuery = `Genera 3 preguntas sobre el tema: "${topic}"`;
+
+            const payload = {
+                 contents: [{ parts: [{ text: userQuery }] }],
+                 systemInstruction: { parts: [{ text: systemPrompt }] },
+                 generationConfig: {
+                     responseMimeType: "application/json",
+                     responseSchema: {
+                         type: "ARRAY",
+                         items: {
+                             type: "OBJECT",
+                             properties: {
+                                 pregunta: { type: "STRING" },
+                                 opciones: { type: "ARRAY", items: { type: "STRING" } },
+                                 correctaindex: { type: "INTEGER" },
+                                 justificacion: { type: "STRING" },
+                                 tema: { type: "STRING" }
+                             },
+                             required: ["pregunta", "opciones", "correctaindex", "justificacion", "tema"]
+                         }
+                     }
+                 }
+            };
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            try {
+                const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+                if (!candidate || !candidate.content?.parts?.[0]?.text) {
+                    throw new Error("La IA no devolvió preguntas válidas.");
+                }
+                const jsonString = cleanJsonString(jsonString);
+                const newQuestions = JSON.parse(jsonString);
+
+                if (Array.isArray(newQuestions) && newQuestions.length > 0) {
+                    const allQuestions = [...allQuestionsFromSheet, ...newQuestions];
+                    const success = await saveAllQuestionsToSheet(allQuestions);
+                    if (success) {
+                        setFeedback(`¡Éxito! Se generaron y guardaron ${newQuestions.length} nuevas preguntas para el tema "${topic}".`, false);
+                        iaGenerateTopicInput.value = '';
+                    }
+                } else {
+                    throw new Error("La IA devolvió un formato de pregunta inesperado.");
+                }
+
+            } catch(error) {
+                 console.error("Error al generar preguntas con IA:", error);
+                 let errorMessage = error.message;
+                 if (errorMessage.includes("403")) {
+                     errorMessage = "Error de Autenticación (403). No se pudo acceder a la IA. Inserta tu clave API.";
+                 }
+                 setFeedback(`Error al generar preguntas: ${errorMessage}`, true);
+            } finally {
+                btnIaGenerate.disabled = false;
+                iaGenerateSpinner.classList.add('hidden');
+                iaGenerateText.textContent = 'Generar';
+            }
+        }
+            
+
+        // --- FUNCIONES DE VALIDACIÓN Y CARGA MASIVA ---
+        
+        async function verifySingleQuestion(isFromQuiz = false) {
+            const questionId = isFromQuiz ? preguntas[indicePreguntaActual].id : parseInt(editQuestionId.value);
+            const question = allQuestionsFromSheet.find(q => q.id === questionId);
+            if (!question) return;
+
+            const button = isFromQuiz ? btnVerifyQuiz : btnVerifyIa;
+            const feedbackEl = isFromQuiz ? verifyQuizFeedback : editFeedback;
+
+            button.disabled = true;
+            feedbackEl.textContent = 'Verificando...';
+            
+            try {
+                const validatedQuestions = await validateAndRefineQuestions([question]);
+                if (validatedQuestions && validatedQuestions.length > 0) {
+                    const validatedQ = { ...validatedQuestions[0], id: question.id };
+                    const questionIndex = allQuestionsFromSheet.findIndex(q => q.id === questionId);
+
+                    if (questionIndex === -1) throw new Error("Pregunta no encontrada para actualizar.");
+
+                    const updatedList = [...allQuestionsFromSheet];
+                    updatedList[questionIndex] = validatedQ;
+                    
+                    const success = await saveAllQuestionsToSheet(updatedList);
+
+                    if(success) {
+                        if(isFromQuiz) {
+                             // Actualizar UI del quiz
+                             preguntas[indicePreguntaActual] = validatedQ;
+                             justificacionTexto.textContent = validatedQ.justificacion;
+                             feedbackEl.textContent = '¡Verificado y actualizado!';
+                        } else {
+                            // Actualizar UI del modal
+                            editCorrectaIndex.value = validatedQ.correctaindex;
+                            editJustificacion.value = validatedQ.justificacion;
+                            feedbackEl.textContent = '¡Verificado! Haz clic en Guardar para confirmar.';
+                        }
+                    }
+
+                } else {
+                    throw new Error("La IA no devolvió una pregunta validada.");
+                }
+            } catch (error) {
+                console.error("Error en la verificación:", error);
+                feedbackEl.textContent = `Error: ${error.message}`;
+            } finally {
+                button.disabled = false;
+            }
+        }
+        
+        async function validateAndRefineQuestions(questions) {
+             const materiaName = MATERIAS[currentMateria].name;
+             const questionsJsonString = JSON.stringify(questions.map(({id, ...q}) => q));
+             const systemPrompt = `Eres un experto revisor. Tu tarea es: 1. NO MODIFIQUES 'pregunta' ni 'opciones'. Deben permanecer idénticas. 2. Verifica la 'correctaindex' y corrígela si es necesario. 3. Mejora la 'justificacion'. 4. Devuelve SÓLO la matriz JSON.`;
+             const userQuery = `Revisa estas preguntas de ${materiaName}: ${questionsJsonString}`;
+             const payload = {
+                 contents: [{ parts: [{ text: userQuery }] }],
+                 systemInstruction: { parts: [{ text: systemPrompt }] },
+                 generationConfig: {
+                     responseMimeType: "application/json",
+                     responseSchema: {
+                         type: "ARRAY",
+                         items: {
+                             type: "OBJECT",
+                             properties: {
+                                 pregunta: { type: "STRING" },
+                                 opciones: { type: "ARRAY", items: { type: "STRING" } },
+                                 correctaindex: { type: "INTEGER" },
+                                 justificacion: { type: "STRING" },
+                                 tema: { type: "STRING" }
+                             },
+                             required: ["pregunta", "opciones", "correctaindex", "justificacion", "tema"]
+                         }
+                     }
+                 }
+             };
+             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; 
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+             const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+             const result = await response.json();
+             const candidate = result.candidates?.[0];
+             if (candidate && candidate.content?.parts?.[0]?.text) {
+                 const jsonString = cleanJsonString(candidate.content.parts[0].text);
+                 const parsed = JSON.parse(jsonString);
+                 return parsed.map((item, index) => ({
+                    ...item,
+                    pregunta: questions[index].pregunta,
+                    opciones: questions[index].opciones
+                 }));
+             } else {
+                 throw new Error("Respuesta de validación incompleta.");
+             }
+        }
+
+        async function structurePastedText(rawText, tema) {
+             const materiaName = MATERIAS[currentMateria].name;
+             const systemPrompt = `Convierte el siguiente texto de preguntas de ${materiaName} en una matriz JSON con los campos: "pregunta", "opciones" (array de 4 strings), "correctaindex" (integer 0-3), y "justificacion". El campo "tema" para TODAS las preguntas debe ser "${tema}". Responde SÓLO con la matriz JSON.`;
+             const userQuery = `Texto a procesar:\n\n${rawText}`;
+
+             const payload = {
+                 contents: [{ parts: [{ text: userQuery }] }],
+                 systemInstruction: { parts: [{ text: systemPrompt }] },
+                 generationConfig: {
+                     responseMimeType: "application/json",
+                     responseSchema: {
+                         type: "ARRAY",
+                         items: {
+                             type: "OBJECT",
+                             properties: {
+                                 pregunta: { type: "STRING" },
+                                 opciones: { type: "ARRAY", items: { type: "STRING" } },
+                                 correctaindex: { type: "INTEGER" },
+                                 justificacion: { type: "STRING" },
+                                 tema: { type: "STRING" }
+                             },
+                             required: ["pregunta", "opciones", "correctaindex", "justificacion", "tema"]
+                         }
+                     }
+                 }
+             };
+             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; 
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+             
+             const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+             const result = await response.json();
+             const candidate = result.candidates?.[0];
+
+             if (candidate && candidate.content?.parts?.[0]?.text) {
+                 const jsonString = cleanJsonString(candidate.content.parts[0].text);
+                 return JSON.parse(jsonString);
+             } else {
+                 throw new Error("La IA no pudo estructurar el texto.");
+             }
+        }
+
+        async function analyzePastedText() {
+            const rawText = textoPdf.value.trim();
+            const tema = temaInput.value.trim();
+            if (!tema) {
+                setFeedback("¡El campo 'Tema a Asignar' es obligatorio!", true);
+                return;
+            }
+            if (rawText.length < 20) {
+                setFeedback("Pega un texto más largo.", true);
+                return;
+            }
+
+            btnAnalizar.disabled = true;
+            analizarSpinner.classList.remove('hidden');
+            analizarText.textContent = 'Analizando...';
+            
+            try {
+                const newQuestionsRaw = await structurePastedText(rawText, tema);
+                if (!Array.isArray(newQuestionsRaw) || newQuestionsRaw.length === 0) {
+                    throw new Error("La IA no pudo estructurar el texto.");
+                }
+
+                const newQuestions = newQuestionsRaw.map(q => ({
+                    ...q,
+                    materia: currentMateria,
+                    id: Date.now() + Math.random() // Simple unique ID
+                }));
+
+                const allQuestions = [...allQuestionsFromSheet, ...newQuestions];
+                const success = await saveAllQuestionsToSheet(allQuestions);
+
+                if (success) {
+                    setFeedback(`¡Éxito! Se cargaron ${newQuestions.length} nuevas preguntas para el tema "${tema}".`, false);
+                    textoPdf.value = '';
+                    temaInput.value = '';
+                }
+
+            } catch (error) {
+                console.error("Error en la carga masiva:", error);
+                setFeedback(`Error: ${error.message}`, true);
+            } finally {
+                btnAnalizar.disabled = false;
+                analizarSpinner.classList.add('hidden');
+                analizarText.textContent = 'Analizar y Cargar Preguntas';
+            }
+        }
+
+
+        // --- FUNCIONES PRINCIPALES DEL CUESTIONARIO ---
+
+        function cargarPregunta() {
+            seleccionActual = null;
+            respuestaComprobada = false;
+            feedbackContainer.classList.add('hidden-transition', 'hidden');
+            justificacionBox.classList.add('hidden');
+            pistaContainer.classList.add('hidden');
+            eli5Container.classList.add('hidden');
+            btnPista.disabled = false;
+            btnEli5.disabled = false;
+            btnVerifyQuiz.style.display = 'none';
+            verifyQuizFeedback.textContent = '';
+
+
+            btnSiguiente.disabled = true;
+            btnSiguiente.textContent = "Siguiente Pregunta";
+            btnSiguiente.classList.replace('bg-indigo-600', 'bg-gray-300');
+            btnSiguiente.classList.replace('text-white', 'text-gray-700');
+
+            if (preguntas.length === 0) {
+                 preguntaTexto.textContent = `No hay preguntas cargadas para el tema "${currentTema}". Ve al Editor para añadir preguntas.`;
+                 contadorPregunta.textContent = "0 preguntas";
+                 totalPreguntasSpan.textContent = "0";
+                 opcionesContainer.innerHTML = '';
+                 btnAlternarVista.textContent = 'Mostrar Editor'; 
+                 return;
+            }
+
+            if (indicePreguntaActual >= preguntas.length) {
+                mostrarResultados();
+                return;
+            }
+
+            const pregunta = preguntas[indicePreguntaActual];
+            preguntaTexto.textContent = pregunta.pregunta;
+            contadorPregunta.textContent = `Pregunta ${indicePreguntaActual + 1} de ${preguntas.length}`;
+            totalPreguntasSpan.textContent = preguntas.length;
+            puntajeSpan.textContent = puntaje; 
+
+            opcionesContainer.innerHTML = '';
+            (pregunta.opciones || []).forEach((opcion, index) => {
+                const btn = document.createElement('button');
+                btn.textContent = opcion;
+                btn.classList.add('opcion-btn', 'w-full', 'py-3', 'px-4', 'text-left', 'bg-gray-50', 'text-gray-800', 'border-2', 'border-gray-200', 'rounded-lg', 'font-medium', 'focus:outline-none');
+                btn.dataset.index = index;
+                btn.addEventListener('click', seleccionarOpcion);
+                opcionesContainer.appendChild(btn);
+            });
+        }
+
+        function seleccionarOpcion(event) {
+            if (respuestaComprobada) return; 
+
+            respuestaComprobada = true; 
+            btnPista.disabled = true;
+            const pregunta = preguntas[indicePreguntaActual];
+            const opcionesBotones = document.querySelectorAll('.opcion-btn');
+            const botonSeleccionado = event.target;
+            seleccionActual = parseInt(botonSeleccionado.dataset.index);
+            const esCorrecta = seleccionActual === pregunta.correctaindex;
+
+            opcionesBotones.forEach((btn, index) => {
+                btn.disabled = true;
+                if (index === pregunta.correctaindex) {
+                    btn.classList.add('correcta');
+                } 
+                else if (index === seleccionActual) {
+                    btn.classList.add('incorrecto');
+                }
+            });
+
+            if (esCorrecta) {
+                puntaje++;
+                puntajeSpan.textContent = puntaje;
+                feedbackTexto.textContent = "✅ ¡Respuesta Correcta!";
+                feedbackTexto.className = 'p-3 rounded-lg text-center font-bold bg-green-100 text-green-700';
+            } else {
+                feedbackTexto.textContent = "❌ Respuesta Incorrecta. La opción correcta está marcada en verde.";
+                feedbackTexto.className = 'p-3 rounded-lg text-center font-bold bg-red-100 text-red-700';
+            }
+            feedbackContainer.classList.remove('hidden-transition', 'hidden');
+            feedbackContainer.classList.add('visible-transition');
+
+            if (pregunta.justificacion && pregunta.justificacion.trim() !== "") {
+                 justificacionTexto.textContent = pregunta.justificacion;
+                 justificacionBox.classList.remove('hidden');
+                 btnVerifyQuiz.style.display = 'block';
+            } else {
+                 justificacionBox.classList.add('hidden');
+            }
+
+            btnSiguiente.disabled = false;
+            btnSiguiente.classList.replace('bg-gray-300', 'bg-indigo-600');
+            btnSiguiente.classList.replace('text-gray-700', 'text-white');
+
+            if (indicePreguntaActual === preguntas.length - 1) {
+                 btnSiguiente.textContent = "Ver Resultados";
+                 btnSiguiente.classList.replace('bg-indigo-600', 'bg-emerald-600');
+            }
+        }
+        
+        // --- MANEJO DE VISTAS DEL EDITOR ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[i], array[j]];
+            }
+        }
+
+        function toggleCargaMasiva() {
+            cargaMasivaContainer.classList.toggle('hidden');
+            const isHidden = cargaMasivaContainer.classList.contains('hidden');
+            btnToggleCargaMasiva.textContent = isHidden ? 'Mostrar Carga Masiva de Texto' : 'Ocultar Carga Masiva de Texto';
+        }
+
+        function siguientePregunta() {
+            if (!respuestaComprobada) return;
+            indicePreguntaActual++;
+            cargarPregunta();
+        }
+
+        function mostrarResultados() {
+            quizContainer.classList.add('hidden');
+            quizHeaderButtons.classList.add('hidden');
+            resultadosContainer.classList.remove('hidden');
+            resultadoFinal.textContent = `${puntaje} / ${preguntas.length}`;
+            const porcentaje = preguntas.length > 0 ? (puntaje / preguntas.length) * 100 : 0;
+            resultadoFinal.className = 'text-6xl font-extrabold mb-8';
+            if (porcentaje >= 80) resultadoFinal.classList.add('text-green-600');
+            else if (porcentaje >= 50) resultadoFinal.classList.add('text-yellow-600');
+            else resultadoFinal.classList.add('text-red-600');
+        }
+
+        function reiniciarCuestionario() {
+            indicePreguntaActual = 0;
+            puntaje = 0;
+            puntajeSpan.textContent = 0;
+            resultadosContainer.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+            quizHeaderButtons.classList.remove('hidden');
+            if (preguntas.length > 0) shuffleArray(preguntas);
+            cargarPregunta();
+        }
+
+        // --- LISTENERS DE EVENTOS ---
+        btnSiguiente.addEventListener('click', siguientePregunta);
+        btnReiniciar.addEventListener('click', reiniciarCuestionario);
+        btnAlternarVista.addEventListener('click', alternarVista);
+        btnCambiarMateria.addEventListener('click', showMateriaSelection);
+        btnVolverMateria.addEventListener('click', showMateriaSelection);
+        btnCancelEdit.addEventListener('click', () => editModalOverlay.classList.add('hidden'));
+        btnSaveEdit.addEventListener('click', saveEditChanges);
+        btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false));
+        btnVerifyQuiz.addEventListener('click', () => verifySingleQuestion(true));
+        
+        btnPista.addEventListener('click', getHint);
+        btnEli5.addEventListener('click', getELI5Explanation);
+        btnIaGenerate.addEventListener('click', generateReviewQuestions);
+        
+        btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva);
+        btnAnalizar.addEventListener('click', analyzePastedText);
+        btnGoToEditor.addEventListener('click', () => {
+            temaSelectionContainer.classList.add('hidden');
+            quizHeaderButtons.classList.remove('hidden');
+            alternarVista();
+        });
+
+
+        // --- INICIO DE LA APLICACIÓN ---
+        window.onload = function() {
+            initApp();
+        }
+    </script>
+</body>
+</html>
+
