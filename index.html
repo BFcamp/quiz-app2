@@ -802,6 +802,7 @@
             quizHeaderButtons.classList.remove('hidden');
             
             preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema);
+            if (preguntas.length > 0) shuffleArray(preguntas);
             reiniciarCuestionario();
         }
 
@@ -1374,7 +1375,7 @@
             resultadosContainer.classList.add('hidden');
             quizContainer.classList.remove('hidden');
             quizHeaderButtons.classList.remove('hidden');
-            if (preguntas.length > 0) shuffleArray(preguntas);
+         //   if (preguntas.length > 0) shuffleArray(preguntas);// COMENTADO PARA BARAJAR PREGUNTAS
             cargarPregunta();
         }
 
@@ -1411,5 +1412,6 @@
 </body>
 
 </html>
+
 
 
