@@ -138,7 +138,12 @@
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Cambiar Materia
             </button>
-             <button id="btn-alternar-vista"
+            
+            <button id="btn-random"
+                    class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
+                Random 🔀
+            </button>
+            <button id="btn-alternar-vista"
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Mostrar Editor
             </button>
@@ -305,7 +310,8 @@
 
     <script type="module">
         // --- CONFIGURACIÓN DE LA APP ---
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOM6QsfhWjTYTU0JGkokJts7iv98eDrR8lSq7ebkBJZdLlLHtlRqmrhWXKUZWkFV--AA/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
+        // ¡¡¡NO OLVIDES PEGAR TU SCRIPT_URL DE GOOGLE APPS SCRIPT AQUÍ!!!
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfy.../exec"; 
         
         const MATERIAS = {
             'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
@@ -323,6 +329,7 @@
         let seleccionActual = null;
         let respuestaComprobada = false;
         let vistaActual = 'quiz'; 
+        let isRandomMode = false; // <-- AÑADIDA VARIABLE PARA MODO RANDOM
 
         // --- REFERENCIAS DEL DOM ---
         const appTitle = document.getElementById('app-title');
@@ -363,6 +370,7 @@
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const spinnerContainer = document.getElementById('spinner-container');
+        const btnRandom = document.getElementById('btn-random'); // <-- AÑADIDA REFERENCIA DEL BOTÓN RANDOM
         
         const editModalOverlay = document.getElementById('edit-modal-overlay');
         const editPregunta = document.getElementById('edit-pregunta');
@@ -490,24 +498,13 @@
                 
                 // --- INICIO DEL CAMBIO (JSONP) ---
                 
-                // 1. Crear un ID único para el script
                 const scriptId = 'jsonp-loader-' + Date.now();
-                
-                // 2. Crear la etiqueta <script>
                 const script = document.createElement('script');
-                
-                // 3. Establecer la URL con el callback. 
-                //    Usamos 'handleQuizData' como el nombre de la función global
                 const cacheBust = new Date().getTime();
                 
-                // AQUÍ ES DONDE SE AÑADE EL PARÁMETRO 'callback'
                 script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`;
                 script.id = scriptId;
-                
-                // 4. Manejar errores de carga del script (ej: red caída, 404, URL incorrecta)
                 script.onerror = handleQuizError;
-                
-                // 5. Inyectar el script en la página. Esto dispara el doGet en Google.
                 document.body.appendChild(script);
                 
                 loadingMessage.textContent = 'Paso 3: Conexión exitosa. Buscando preguntas...';
@@ -515,7 +512,6 @@
                 progressContainer.classList.remove('hidden');
                 progressBar.style.width = '50%';
                 
-                // 6. Limpiar el script después de que se use
                 script.onload = () => {
                     document.getElementById(scriptId)?.remove();
                 };
@@ -523,8 +519,6 @@
                 // --- FIN DEL CAMBIO ---
 
             } catch (error) {
-                // Este catch ahora solo agarra errores de la inyección del script,
-                // la lógica de datos real está en 'handleQuizData' y 'handleQuizError'.
                 handleQuizError(error);
             }
         }
@@ -544,7 +538,6 @@
             updateConnectionStatus('connecting');
             try {
                 // El método de escritura (POST) con 'no-cors' SÍ funciona y está bien.
-                // No lo cambiamos.
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -627,7 +620,7 @@
         }
 
         function openEditModal(event) {
-            const questionId = parseInt(event.target.dataset.id);
+            const questionId = parseFloat(event.target.dataset.id); // Usar parseFloat por si los IDs tienen decimales
             const question = allQuestionsFromSheet.find(q => q.id === questionId);
 
             if (!question) {
@@ -657,7 +650,7 @@
         }
 
         async function saveEditChanges() {
-            const questionId = parseInt(editQuestionId.value);
+            const questionId = parseFloat(editQuestionId.value);
             const questionIndex = allQuestionsFromSheet.findIndex(q => q.id === questionId);
 
             if (questionIndex === -1) {
@@ -696,7 +689,7 @@
         }
 
         async function deleteQuestion(event) {
-            const questionId = parseInt(event.target.dataset.id);
+            const questionId = parseFloat(event.target.dataset.id);
             
             if (!confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) return;
 
@@ -794,6 +787,7 @@
             btnGoToEditor.style.display = 'block';
         }
         
+        // --- MODIFICADA FUNCIÓN selectTema ---
         function selectTema(tema) {
             currentTema = tema;
             currentTemaName.textContent = tema;
@@ -802,7 +796,14 @@
             quizHeaderButtons.classList.remove('hidden');
             
             preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema);
-            if (preguntas.length > 0) shuffleArray(preguntas);
+            
+            // --- LÍNEA MODIFICADA ---
+            // Solo baraja si el modo random está activado
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+            // ------------------------
+
             reiniciarCuestionario();
         }
 
@@ -909,8 +910,8 @@
             const userQuery = `Pregunta: "${pregunta.pregunta}" Opciones: ${pregunta.opciones.join(', ')}`;
             
             const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; // Clave API de ejemplo
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
             try {
                 const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -939,8 +940,8 @@
             const userQuery = `Concepto: "${pregunta.justificacion}"`;
 
             const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; // Clave API de ejemplo
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
             
             try {
                 const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -995,8 +996,8 @@
                      }
                  }
             };
-            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4";
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; // Clave API de ejemplo
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
             
             try {
                 const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1006,20 +1007,18 @@
                     throw new Error("La IA no devolvió preguntas válidas.");
                 }
                 
-                // Corrección: Usar la variable correcta
                 const jsonString = cleanJsonString(candidate.content.parts[0].text);
                 const newQuestions = JSON.parse(jsonString);
 
                 if (Array.isArray(newQuestions) && newQuestions.length > 0) {
                     
-                    // Asignar materia e ID a las nuevas preguntas
                     const highestId = allQuestionsFromSheet.reduce((max, q) => Math.max(max, q.id), 0);
-                    let currentId = highestId + 1;
+                    let currentId = Math.floor(highestId) + 1; // Usar floor para asegurar IDs enteros
                     
                     const questionsToAdd = newQuestions.map(q => ({
                         ...q,
                         materia: currentMateria,
-                        id: currentId++
+                        id: currentId++ // Asignar ID incremental
                     }));
                     
                     const allQuestions = [...allQuestionsFromSheet, ...questionsToAdd];
@@ -1035,8 +1034,8 @@
             } catch(error) {
                  console.error("Error al generar preguntas con IA:", error);
                  let errorMessage = error.message;
-                 if (errorMessage.includes("403")) {
-                     errorMessage = "Error de Autenticación (403). No se pudo acceder a la IA. Inserta tu clave API.";
+                 if (error.message.includes("API key not valid")) {
+                     errorMessage = "Error de Autenticación. La clave API de Gemini no es válida.";
                  }
                  setFeedback(`Error al generar preguntas: ${errorMessage}`, true);
             } finally {
@@ -1050,7 +1049,7 @@
         // --- FUNCIONES DE VALIDACIÓN Y CARGA MASIVA ---
         
         async function verifySingleQuestion(isFromQuiz = false) {
-            const questionId = isFromQuiz ? preguntas[indicePreguntaActual].id : parseInt(editQuestionId.value);
+            const questionId = isFromQuiz ? preguntas[indicePreguntaActual].id : parseFloat(editQuestionId.value);
             const question = allQuestionsFromSheet.find(q => q.id === questionId);
             if (!question) return;
 
@@ -1075,12 +1074,10 @@
 
                     if(success) {
                         if(isFromQuiz) {
-                             // Actualizar UI del quiz
                              preguntas[indicePreguntaActual] = validatedQ;
                              justificacionTexto.textContent = validatedQ.justificacion;
                              feedbackEl.textContent = '¡Verificado y actualizado!';
                         } else {
-                            // Actualizar UI del modal
                             editCorrectaIndex.value = validatedQ.correctaindex;
                             editJustificacion.value = validatedQ.justificacion;
                             feedbackEl.textContent = '¡Verificado! Haz clic en Guardar para confirmar.';
@@ -1124,8 +1121,8 @@
                      }
                  }
              };
-             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; 
-             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; // Clave API de ejemplo
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
              const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
              const result = await response.json();
              const candidate = result.candidates?.[0];
@@ -1168,8 +1165,8 @@
                      }
                  }
              };
-             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; 
-             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+             const apiKey = "AIzaSyCX5CYX8TnmpxMMgBoD0zb_mYL0hJLrcP4"; // Clave API de ejemplo
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
              
              const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
              const result = await response.json();
@@ -1206,7 +1203,7 @@
                 }
                 
                 const highestId = allQuestionsFromSheet.reduce((max, q) => Math.max(max, q.id), 0);
-                let currentId = highestId + 1;
+                let currentId = Math.floor(highestId) + 1;
 
                 const newQuestions = newQuestionsRaw.map(q => ({
                     ...q,
@@ -1344,6 +1341,38 @@
             }
         }
 
+        // --- AÑADIDA NUEVA FUNCIÓN ---
+        function toggleRandomMode() {
+            // 1. Cambia el estado
+            isRandomMode = !isRandomMode; 
+
+            // 2. Actualiza la apariencia del botón
+            if (isRandomMode) {
+                btnRandom.classList.replace('bg-gray-200', 'bg-indigo-600');
+                btnRandom.classList.replace('text-gray-700', 'text-white');
+                btnRandom.textContent = 'Random ON 🔀';
+            } else {
+                btnRandom.classList.replace('bg-indigo-600', 'bg-gray-200');
+                btnRandom.classList.replace('text-white', 'text-gray-700');
+                btnRandom.textContent = 'Random 🔀';
+            }
+
+            // 3. Vuelve a cargar las preguntas del tema actual
+            //    (Esta es la parte clave para que el efecto sea inmediato)
+            if(currentTema) {
+                preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === currentTema);
+            }
+            
+            // 4. Baraja si el modo random se acaba de activar
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+            // (Si se desactivó, 'preguntas' queda en el orden original de la hoja)
+
+            // 5. Reinicia el quiz para empezar desde la pregunta 1
+            reiniciarCuestionario(); 
+        }
+
         function toggleCargaMasiva() {
             cargaMasivaContainer.classList.toggle('hidden');
             const isHidden = cargaMasivaContainer.classList.contains('hidden');
@@ -1368,6 +1397,8 @@
             else resultadoFinal.classList.add('text-red-600');
         }
 
+        // --- MODIFICADA FUNCIÓN reiniciarCuestionario ---
+        // (Devuelta a su estado original, ya no baraja)
         function reiniciarCuestionario() {
             indicePreguntaActual = 0;
             puntaje = 0;
@@ -1375,13 +1406,19 @@
             resultadosContainer.classList.add('hidden');
             quizContainer.classList.remove('hidden');
             quizHeaderButtons.classList.remove('hidden');
-         //   if (preguntas.length > 0) shuffleArray(preguntas);// COMENTADO PARA BARAJAR PREGUNTAS
+            // La línea de shuffleArray fue eliminada de aquí.
             cargarPregunta();
         }
 
         // --- LISTENERS DE EVENTOS ---
         btnSiguiente.addEventListener('click', siguientePregunta);
-        btnReiniciar.addEventListener('click', reiniciarCuestionario);
+        btnReiniciar.addEventListener('click', () => {
+             // Ahora, reiniciar desde la pantalla de resultados SÍ respeta el modo Random
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+            reiniciarCuestionario();
+        });
         btnAlternarVista.addEventListener('click', alternarVista);
         btnCambiarMateria.addEventListener('click', showMateriaSelection);
         btnVolverMateria.addEventListener('click', showMateriaSelection);
@@ -1401,17 +1438,14 @@
             quizHeaderButtons.classList.remove('hidden');
             alternarVista();
         });
+        
+        btnRandom.addEventListener('click', toggleRandomMode); // <-- AÑADIDO LISTENER PARA EL BOTÓN RANDOM
 
 
         // --- INICIO DE LA APLICACIÓN ---
         window.onload = function() {
-            // Se asegura que las funciones globales estén listas antes de llamar a initApp
             initApp();
         }
     </script>
 </body>
-
 </html>
-
-
-
