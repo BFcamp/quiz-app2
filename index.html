@@ -71,16 +71,17 @@
             </button>
         </div>
 
-        <div class="mb-6 flex justify-between hidden" id="quiz-header-buttons">
+      <div class="mb-6 flex justify-between hidden" id="quiz-header-buttons">
              <button id="btn-cambiar-materia"
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Cambiar Materia
             </button>
+
             <button id="btn-random"
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Random 🔀
             </button>
-             <button id="btn-alternar-vista"
+            <button id="btn-alternar-vista"
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Mostrar Editor
             </button>
@@ -441,14 +442,16 @@
 
         // --- INICIO DE LA APLICACIÓN ---
       // --- INICIO DE LA APLICACIÓN (CORREGIDO) ---
-// Espera a que el HTML esté completamente cargado antes de ejecutar CUALQUIER código
+// --- INICIO DE LA APLICACIÓN (CORREGIDO) ---
 document.addEventListener('DOMContentLoaded', (event) => {
     console.log('DOM completamente cargado y parseado. Iniciando app...');
-    initApp(); // Ahora llamamos a initApp() aquí dentro
+    // Asegúrate de que TODAS las asignaciones de addEventListener estén DENTRO
+    // o que initApp() (que las llama indirectamente) esté aquí.
+    initApp(); 
 });
-        
     </script>
     </body>
 </html>
+
 
 
