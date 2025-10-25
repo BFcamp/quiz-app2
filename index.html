@@ -316,10 +316,56 @@
         // --- CONFIGURACIÓN DE LA APP ---
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOM6QsfhWjTYTU0JGkokJts7iv98eDrR8lSq7ebkBJZdLlLHtlRqmrhWXKUZWkFV--AA/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
         
-        const MATERIAS = {
-            'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
-            'oftalmologia': { name: 'Oftalmología', color: 'bg-teal-600', hover: 'hover:bg-teal-700' }
+        // --- CONFIGURACIÓN DE MATERIAS (MODIFICADO) ---
+        
+        // Las materias ahora se cargarán desde localStorage
+        let MATERIAS = {}; 
+        
+        // Define los colores por defecto para las materias nuevas
+        const MATERIA_COLORS = [
+            { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
+            { color: 'bg-teal-600', hover: 'hover:bg-teal-700' },
+            { color: 'bg-rose-600', hover: 'hover:bg-rose-700' },
+            { color: 'bg-amber-600', hover: 'hover:bg-amber-700' },
+            { color: 'bg-sky-600', hover: 'hover:bg-sky-700' },
+            { color: 'bg-emerald-600', hover: 'hover:bg-emerald-700' }
+        ];
+
+        // Define las materias iniciales si no hay ninguna guardada
+        const DEFAULT_MATERIAS = {
+            'toxicologia': { name: 'Toxicología', color: MATERIA_COLORS[0].color, hover: MATERIA_COLORS[0].hover },
+            'oftalmologia': { name: 'Oftalmología', color: MATERIA_COLORS[1].color, hover: MATERIA_COLORS[1].hover }
         };
+
+        /**
+         * Guarda el objeto de materias actual en localStorage.
+         */
+        function saveMaterias() {
+            try {
+                localStorage.setItem('quiz_materias', JSON.stringify(MATERIAS));
+            } catch (e) {
+                console.error("No se pudo guardar la lista de materias:", e);
+            }
+        }
+
+        /**
+         * Carga las materias desde localStorage o usa las de por defecto.
+         */
+        function loadMaterias() {
+            let materiasGuardadas = localStorage.getItem('quiz_materias');
+            if (materiasGuardadas) {
+                try {
+                    MATERIAS = JSON.parse(materiasGuardadas);
+                } catch (e) {
+                    console.error("No se pudieron cargar las materias guardadas, usando default:", e);
+                    MATERIAS = DEFAULT_MATERIAS;
+                }
+            } else {
+                MATERIAS = DEFAULT_MATERIAS;
+                saveMaterias(); // Guarda las de por defecto la primera vez
+            }
+        }
+        // --- FIN DEL NUEVO BLOQUE DE MATERIAS ---
         
         // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
         let allQuestionsFromSheet = []; // Almacena TODAS las preguntas cargadas desde la hoja de cálculo
@@ -334,6 +380,8 @@
         let vistaActual = 'quiz'; 
 
         // --- REFERENCIAS DEL DOM ---
+        const temasExistentesDatalist = document.getElementById('temas-existentes');
+        const btnAddMateria = document.getElementById('btn-add-materia'); // <-- AÑADIR ESTA LÍNEA
         const appTitle = document.getElementById('app-title');
         const loadingScreen = document.getElementById('loading-screen');
         const loadingMessage = document.getElementById('loading-message');
@@ -489,6 +537,7 @@
          * Ahora usa JSONP (inyección de script) en lugar de fetch().
          */
         async function initApp() {
+            loadMaterias();
             updateConnectionStatus('connecting');
             loadingScreen.classList.remove('hidden');
             loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
@@ -782,6 +831,51 @@
             temaButtons.innerHTML = '';
             
             const temasUnicos = getUniqueThemes();
+            /**
+         * Genera un ID simple a partir del nombre de la materia.
+         */
+        function generateMateriaId(name) {
+            return name.toLowerCase()
+                       .trim()
+                       .replace(/\s+/g, '-')     // Reemplaza espacios con -
+                       .replace(/[^a-z0-9-]/g, ''); // Remueve caracteres no alfanuméricos
+        }
+
+        /**
+         * Pide al usuario el nombre de una nueva materia y la agrega.
+         */
+        function addNewMateria() {
+            const materiaName = prompt("Introduce el nombre de la nueva materia:", "Ej: Farmacología");
+            
+            if (!materiaName || materiaName.trim() === "") {
+                return; // El usuario canceló o no escribió nada
+            }
+
+            const materiaId = generateMateriaId(materiaName);
+            
+            if (MATERIAS[materiaId]) {
+                alert("Error: Ya existe una materia con un nombre similar.");
+                return;
+            }
+
+            // Asigna un color del ciclo
+            const nextColorIndex = Object.keys(MATERIAS).length % MATERIA_COLORS.length;
+            const newColor = MATERIA_COLORS[nextColorIndex];
+
+            // Crea y guarda la nueva materia
+            MATERIAS[materiaId] = {
+                name: materiaName.trim(),
+                color: newColor.color,
+                hover: newColor.hover
+            };
+            
+            saveMaterias();
+            
+            // Refresca la lista de botones de materias
+            showMateriaSelection();
+        }
+
+            
             const materiaConfig = MATERIAS[currentMateria];
 
             if (temasUnicos.length > 0) {
@@ -1389,6 +1483,7 @@
         }
 
         // --- LISTENERS DE EVENTOS ---
+        btnAddMateria.addEventListener('click', addNewMateria);
         btnSiguiente.addEventListener('click', siguientePregunta);
         btnReiniciar.addEventListener('click', reiniciarCuestionario);
         btnAlternarVista.addEventListener('click', alternarVista);
@@ -1421,6 +1516,7 @@
 </body>
 
 </html>
+
 
 
 
