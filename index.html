@@ -83,16 +83,111 @@
             </button>
         </div>
 
-        <div id="editor-container" class="hidden"> ... (sin cambios) ... </div>
-        <div id="quiz-container" class="hidden"> ... (sin cambios) ... </div>
-        <div id="resultados-container" class="text-center p-10 hidden"> ... (sin cambios) ... </div>
-        <div id="edit-modal-overlay" class="modal-overlay hidden"> ... (sin cambios) ... </div>
+        <div id="editor-container" class="hidden">
+            <h2 class="text-2xl font-bold text-indigo-600 mb-4">Panel de Gestión (<span id="editor-materia-nombre">Materia</span>)</h2>
+            <div class="p-4 border-2 border-dashed border-indigo-300 rounded-lg mb-6 bg-indigo-50">
+                 <h3 class="text-xl font-bold text-indigo-700 mb-3">✨ Generador de Preguntas con IA</h3>
+                 <p class="text-sm text-gray-600 mb-3">¿Necesitas preguntas para un tema nuevo? Escríbelo aquí y la IA creará 3 preguntas para ti.</p>
+                 <div class="flex space-x-2">
+                     <input type="text" id="ia-generate-topic-input" placeholder="Ej: Intoxicación por Plomo" class="flex-grow p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500">
+                     <button id="btn-ia-generate" class="py-3 px-5 bg-indigo-600 text-white font-bold rounded-lg shadow-md hover:bg-indigo-700 transition flex items-center justify-center disabled:bg-gray-400">
+                        <span id="ia-generate-text">Generar</span>
+                        <div id="ia-generate-spinner" class="spinner ml-2 hidden" style="border-top-color: white;"></div>
+                     </button>
+                 </div>
+            </div>
+            <button id="btn-toggle-carga-masiva" class="w-full py-2 mb-4 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition">
+                Mostrar/Ocultar Carga Masiva de Texto
+            </button>
+            <div id="carga-masiva-container" class="p-4 border border-gray-200 rounded-lg mb-6 hidden">
+                <h3 class="text-lg font-bold text-gray-700 mb-3">Carga Masiva desde Texto</h3>
+                <div class="mb-4">
+                     <label for="tema-input" class="block text-sm font-medium text-gray-700 mb-1">Tema a Asignar (Obligatorio)</label>
+                     <input type="text" id="tema-input" list="temas-existentes" placeholder="Escribe o selecciona un tema" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500">
+                     <datalist id="temas-existentes"></datalist>
+                </div>
+                <textarea id="texto-pdf" rows="6" placeholder="Pega aquí el texto sin formato de tus preguntas (Ej: 'Pregunta 1. ¿Antídoto...? a) Opción b) Correcta c) Opción... JUSTIFICACIÓN: ...') " class="w-full p-4 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 mb-4"></textarea>
+                <button id="btn-analizar" class="w-full py-3 px-6 bg-green-600 text-white font-bold rounded-lg shadow-md hover:bg-green-700 transition duration-150 ease-in-out flex items-center justify-center disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        <span id="analizar-text">Analizar y Cargar Preguntas</span>
+                        <div id="analizar-spinner" class="spinner ml-3 hidden" style="border-top-color: white;"></div>
+                </button>
+                <p class="text-gray-500 text-xs mt-2 text-center">Esta función usa IA para estructurar el texto.</p>
+            </div>
+            <div id="editor-feedback" class="mb-4 p-3 rounded-lg text-sm hidden"></div>
+            <h3 class="text-xl font-bold text-gray-700 my-4 border-t pt-4">Preguntas Guardadas (<span id="total-preguntas-editor">0</span>)</h3>
+            <div id="gestion-preguntas-container" class="space-y-3"></div>
+        </div>
+
+        <div id="quiz-container" class="hidden">
+             <div class="flex justify-between items-center mt-2 mb-4">
+                 <p class="text-sm font-semibold text-indigo-700">Tema Actual: <span id="current-tema-name" class="text-indigo-900 font-bold"></span></p>
+                 <div id="puntaje-container" class="text-xl font-semibold text-gray-700">Puntaje: <span id="puntaje">0</span> / <span id="total-preguntas">0</span></div>
+             </div>
+             <div class="bg-indigo-50 p-6 rounded-lg shadow-inner mb-6 transition-all duration-300">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p id="contador-pregunta" class="text-sm font-medium text-indigo-500 mb-2"></p>
+                        <h2 id="pregunta-texto" class="text-xl font-bold text-gray-800">Cargando pregunta...</h2>
+                    </div>
+                    <button id="btn-pista" class="py-2 px-4 bg-yellow-400 text-yellow-900 text-sm font-semibold rounded-full hover:bg-yellow-500 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">Pista ✨</button>
+                </div>
+                 <div id="pista-container" class="mt-3 p-3 bg-yellow-100 text-yellow-800 text-sm rounded-lg border border-yellow-300 hidden"></div>
+             </div>
+             <div id="opciones-container" class="space-y-4"></div>
+             <div id="feedback-container" class="mt-6 hidden-transition">
+                <p id="feedback-texto" class="p-3 rounded-lg text-center font-bold"></p>
+                <div id="justificacion-box" class="mt-4 p-4 bg-gray-100 rounded-lg border border-gray-300 text-gray-700 text-sm hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                             <p class="font-bold text-indigo-600 mb-1">Justificación:</p>
+                             <p id="justificacion-texto"></p>
+                        </div>
+                        <div class="flex flex-col space-y-2 ml-4 flex-shrink-0">
+                            <button id="btn-eli5" class="py-1 px-3 text-xs bg-teal-400 text-teal-900 font-semibold rounded-full hover:bg-teal-500 transition shadow-sm">Explícamelo Fácil ✨</button>
+                            <button id="btn-verify-quiz" class="py-1 px-3 text-xs bg-yellow-400 text-yellow-900 font-semibold rounded-full hover:bg-yellow-500 transition shadow-sm" style="display: none;">Verificar con IA ✨</button>
+                        </div>
+                    </div>
+                    <div id="eli5-container" class="mt-3 pt-3 border-t border-gray-300 text-sm text-teal-800 hidden"></div>
+                    <div id="verify-quiz-feedback" class="mt-2 text-xs text-center font-medium"></div>
+                </div>
+            </div>
+             <div class="mt-8 flex justify-center">
+                <button id="btn-siguiente" disabled class="w-full py-3 px-6 bg-gray-300 text-gray-700 font-bold rounded-lg shadow-md hover:bg-gray-400 transition duration-150 ease-in-out disabled:bg-gray-300 disabled:cursor-not-allowed">Siguiente Pregunta</button>
+             </div>
+        </div>
+
+        <div id="resultados-container" class="text-center p-10 hidden">
+            <h2 class="text-3xl font-bold text-indigo-700 mb-4">¡Cuestionario Terminado!</h2>
+            <p class="text-xl text-gray-600 mb-6">Tu puntaje final es:</p>
+            <p id="resultado-final" class="text-6xl font-extrabold text-green-600 mb-8">0/0</p>
+            <button id="btn-reiniciar" class="py-3 px-8 bg-indigo-600 text-white font-bold rounded-full shadow-lg hover:bg-indigo-700 transition duration-150 ease-in-out">Volver a Empezar</button>
+        </div>
+        
+        <div id="edit-modal-overlay" class="modal-overlay hidden">
+            <div class="modal-content">
+                <h3 class="text-2xl font-bold text-indigo-600 mb-4">Editar Pregunta</h3>
+                <div class="space-y-4">
+                    <input type="hidden" id="edit-question-id">
+                    <div><label class="block text-sm font-medium text-gray-700">Pregunta:</label><textarea id="edit-pregunta" rows="3" class="w-full p-2 border rounded-lg"></textarea></div>
+                    <div><label class="block text-sm font-medium text-gray-700">Tema:</label><input type="text" id="edit-tema" class="w-full p-2 border rounded-lg" readonly></div>
+                    <div id="edit-opciones-container"><label class="block text-sm font-medium text-gray-700">Opciones (Marca Correcta en el selector):</label></div>
+                    <div><label class="block text-sm font-medium text-gray-700">Índice Correcto (0, 1, 2, 3):</label><select id="edit-correcta-index" class="w-full p-2 border rounded-lg"><option value="0">Opción 1</option><option value="1">Opción 2</option><option value="2">Opción 3</option><option value="3">Opción 4</option></select></div>
+                    <div><label class="block text-sm font-medium text-gray-700">Justificación:</label><textarea id="edit-justificacion" rows="4" class="w-full p-2 border rounded-lg"></textarea></div>
+                </div>
+                <div id="edit-feedback" class="mt-4 p-3 rounded-lg text-sm hidden"></div>
+                <div class="flex justify-between mt-6 space-x-3">
+                    <button id="btn-verify-ia" class="flex-1 py-2 px-4 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition disabled:bg-gray-400">✨ Verificar con IA</button>
+                    <button id="btn-save-edit" class="flex-1 py-2 px-4 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">Guardar Cambios</button>
+                    <button id="btn-cancel-edit" class="py-2 px-4 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition">Cancelar</button>
+                </div>
+            </div>
+        </div>
 
     </div>
 
     <script type="module">
         // --- CONFIGURACIÓN DE LA APP ---
-        // ¡¡¡ASEGÚRATE DE PEGAR TU ÚLTIMA URL DE APPS SCRIPT AQUÍ!!!
+        // Pega tu URL de Google Apps Script aquí
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxoKETyeKu3F6vziCMWi8srJAzYv0yrR_ONgSpOpczS23BZ8Ow6eU0uigXRcGlHUuwBiQ/exec"; 
         
         // --- VARIABLES DE ESTADO ---
@@ -109,12 +204,11 @@
         let vistaActual = 'quiz'; 
         let isRandomMode = false;
 
-        const MATERIA_COLORS = [ /* ... (lista de colores sin cambios) ... */
+        const MATERIA_COLORS = [ /* ... (lista de colores) ... */
              { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' }, { color: 'bg-teal-600', hover: 'hover:bg-teal-700' }, { color: 'bg-rose-600', hover: 'hover:bg-rose-700' }, { color: 'bg-amber-600', hover: 'hover:bg-amber-700' }, { color: 'bg-sky-600', hover: 'hover:bg-sky-700' }, { color: 'bg-emerald-600', hover: 'hover:bg-emerald-700' }
         ];
 
-        // --- REFERENCIAS DEL DOM ---
-        // (Se declaran aquí, pero se asignan dentro de DOMContentLoaded)
+        // --- REFERENCIAS DEL DOM (Declaradas, se asignan en DOMContentLoaded) ---
         let appTitle, loadingScreen, loadingMessage, materiaSelectionContainer, materiaButtons, temaSelectionContainer, 
             temaButtons, currentMateriaName, noTemasMessage, quizContainer, resultadosContainer, preguntaTexto, 
             opcionesContainer, contadorPregunta, puntajeSpan, totalPreguntasSpan, feedbackContainer, feedbackTexto, 
@@ -123,17 +217,16 @@
             editorFeedback, currentTemaName, totalPreguntasEditor, gestionPreguntasContainer, connectionStatus, 
             btnGoToEditor, progressContainer, progressBar, spinnerContainer, btnRandom, btnAddMateria, 
             editModalOverlay, editPregunta, editTema, editOpcionesContainer, editCorrectaIndex, 
-            editJustificacion, editQuestionId, btnSaveEdit, btnCancelEdit, btnVerifyIa, editFeedback, 
+            editJustificacion, editQuestionId, btnSaveEdit, btnCancelEdit, btnVerifyIa, 
             btnPista, pistaContainer, btnEli5, eli5Container, btnIaGenerate, iaGenerateTopicInput, 
             iaGenerateSpinner, iaGenerateText, btnVerifyQuiz, verifyQuizFeedback, btnToggleCargaMasiva, 
             cargaMasivaContainer, temaInput, textoPdf, btnAnalizar, analizarText, analizarSpinner, 
-            temasExistentesDatalist;
+            temasExistentesDatalist, editFeedbackElement; // Renombrada para evitar conflicto
 
-        /** Asigna todas las referencias del DOM una vez que el HTML está listo */
+        /** Asigna todas las referencias del DOM */
         function assignDomReferences() {
             appTitle = document.getElementById('app-title');
             loadingScreen = document.getElementById('loading-screen');
-            // ... (Asigna TODAS las demás referencias aquí)...
             loadingMessage = document.getElementById('loading-message');
             materiaSelectionContainer = document.getElementById('materia-selection-container');
             materiaButtons = document.getElementById('materia-buttons');
@@ -161,7 +254,7 @@
             btnVolverMateria = document.getElementById('btn-volver-materia');
             quizHeaderButtons = document.getElementById('quiz-header-buttons');
             editorMateriaNombre = document.getElementById('editor-materia-nombre');
-            editorFeedback = document.getElementById('editor-feedback');
+            editorFeedback = document.getElementById('editor-feedback'); // Para feedback general del editor
             currentTemaName = document.getElementById('current-tema-name');
             totalPreguntasEditor = document.getElementById('total-preguntas-editor');
             gestionPreguntasContainer = document.getElementById('gestion-preguntas-container');
@@ -182,7 +275,7 @@
             btnSaveEdit = document.getElementById('btn-save-edit');
             btnCancelEdit = document.getElementById('btn-cancel-edit');
             btnVerifyIa = document.getElementById('btn-verify-ia');
-            // editFeedback = document.getElementById('edit-feedback'); // Duplicado? Revisa si tienes 2 IDs
+            editFeedbackElement = document.getElementById('edit-feedback'); // Feedback específico del modal de edición
             btnPista = document.getElementById('btn-pista');
             pistaContainer = document.getElementById('pista-container');
             btnEli5 = document.getElementById('btn-eli5');
@@ -204,36 +297,155 @@
         }
 
         // --- GOOGLE SHEETS Y PERSISTENCIA DE DATOS ---
-        function updateConnectionStatus(status, message = '') { /* ... (sin cambios) ... */ }
+        function updateConnectionStatus(status, message = '') {
+            connectionStatus.classList.remove('bg-yellow-200', 'text-yellow-800', 'bg-green-200', 'text-green-800', 'bg-red-200', 'text-red-800');
+            if (status === 'connecting') { connectionStatus.textContent = '🟡 Conectando...'; connectionStatus.classList.add('bg-yellow-200', 'text-yellow-800'); }
+            else if (status === 'online') { connectionStatus.textContent = '✅ Sincronizado'; connectionStatus.classList.add('bg-green-200', 'text-green-800'); }
+            else if (status === 'offline') { connectionStatus.textContent = '⚠️ Error Conexión'; connectionStatus.classList.add('bg-red-200', 'text-red-800'); }
+        }
         
         // =================================================================
         // == LÓGICA DE CARGA Y GUARDADO (JSONP) ==
         // =================================================================
 
         /** CALLBACK DE ÉXITO para Carga Inicial */
-        window.handleQuizData = (payload) => { /* ... (sin cambios) ... */ };
+        window.handleQuizData = (payload) => {
+            try {
+                if (payload.status === 'error') throw new Error(payload.message);
+                MATERIAS = payload.materias || {};
+                const rawData = payload.preguntas || [];
+                allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
+                localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
+                progressBar.style.width = '100%';
+                loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas y ${Object.keys(MATERIAS).length} materias!`;
+                console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas. Materias:`, MATERIAS);
+                updateConnectionStatus('online');
+                setTimeout(showMateriaSelection, 1200);
+            } catch (error) {
+                console.error("Error al procesar datos de JSONP:", error);
+                loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
+                loadFromLocalBackup(); 
+            }
+        };
 
         /** CALLBACK DE ÉXITO para Guardar Materia */
-        window.handleSaveResult = (payload) => { /* ... (sin cambios) ... */ };
+        window.handleSaveResult = (payload) => {
+            const scriptId = 'jsonp-saver-' + Date.now(); // Usa un ID diferente si es necesario
+            document.getElementById(scriptId)?.remove(); // Limpia el script tag
+            
+            // Verifica si el botón existe antes de intentar modificarlo
+            if (btnAddMateria) {
+                 btnAddMateria.disabled = false; // Reactiva el botón
+                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
+            }
+
+            if (payload.status === 'success') {
+                console.log("Materia guardada:", payload.saved_materia);
+                MATERIAS[payload.saved_materia.id] = payload.saved_materia;
+                showMateriaSelection(); // Refresca la lista de botones
+            } else {
+                console.error("Error al guardar materia:", payload.message);
+                alert(`No se pudo guardar la materia en la nube: ${payload.message}`);
+            }
+        };
 
         /** CALLBACK DE ERROR para Carga o Guardado */
-        window.handleJSONPError = (error) => { /* ... (sin cambios) ... */ };
+        window.handleJSONPError = (error) => {
+             console.error("Error en JSONP:", error);
+             // Verifica si el botón existe antes de interactuar
+             if (btnAddMateria && btnAddMateria.disabled) { 
+                 btnAddMateria.disabled = false;
+                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
+                 alert("Error de red al intentar guardar la materia. Intenta de nuevo.");
+             } else { 
+                 loadingMessage.textContent = "Error de red al conectar. Cargando desde guardado local...";
+                 loadFromLocalBackup();
+             }
+        };
 
-        function loadFromLocalBackup() { /* ... (sin cambios) ... */ }
+        function loadFromLocalBackup() {
+            updateConnectionStatus('offline');
+            loadingMessage.textContent = "Error de red. Cargando preguntas desde guardado local...";
+            MATERIAS = { 'temporal': { name: 'Error de Red', color: 'bg-red-600', hover: 'hover:bg-red-700' } };
+            const localData = localStorage.getItem('quiz_data_backup');
+            if(localData) {
+                allQuestionsFromSheet = JSON.parse(localData);
+                loadingMessage.textContent += ` ¡Éxito! Se cargaron ${allQuestionsFromSheet.length} preguntas del guardado local.`;
+            } else {
+                loadingMessage.textContent += " No se encontró un guardado local de preguntas.";
+            }
+            setTimeout(() => showMateriaSelection(), 2000);
+        }
 
-        async function initApp() { /* ... (sin cambios) ... */ }
+        async function initApp() {
+            loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
+            updateConnectionStatus('connecting');
+            loadingScreen.classList.remove('hidden');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            try {
+                loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
+                const scriptId = 'jsonp-loader-' + Date.now();
+                const script = document.createElement('script');
+                const cacheBust = new Date().getTime();
+                script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`; 
+                script.id = scriptId;
+                script.onerror = handleJSONPError; 
+                document.body.appendChild(script);
+                loadingMessage.textContent = 'Paso 3: Conexión exitosa. Buscando datos...';
+                spinnerContainer.classList.add('hidden');
+                progressContainer.classList.remove('hidden');
+                progressBar.style.width = '50%';
+                script.onload = () => { document.getElementById(scriptId)?.remove(); };
+            } catch (error) { handleJSONPError(error); }
+        }
         
         // --- FIN LÓGICA DE CARGA Y GUARDADO ---
 
-        /** FUNCIÓN saveAllQuestionsToSheet (USA FETCH) */
-        async function saveAllQuestionsToSheet(questionsList) { /* ... (sin cambios) ... */ }
+        /** FUNCIÓN saveAllQuestionsToSheet (USA FETCH - Requiere doOptions y CORS en doPost en Code.gs) */
+        async function saveAllQuestionsToSheet(questionsList) {
+             localStorage.setItem('quiz_data_backup', JSON.stringify(questionsList));
+            allQuestionsFromSheet = questionsList;
+            if (currentMateria) {
+                 preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
+                 renderGestionPreguntas();
+            }
+            updateConnectionStatus('connecting');
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'saveQuestions', data: questionsList })
+                });
+                // Si llegaste aquí, necesitas asegurarte que tu Code.gs tenga doOptions y que doPost retorne con headers CORS
+                if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+                const result = await response.json();
+                if (result.status !== 'success') throw new Error(result.message || 'Error desconocido al guardar en la nube.');
+                console.log("Guardado de preguntas confirmado por Google Sheets.");
+                updateConnectionStatus('online');
+                setFeedback('¡Éxito! Guardado en la nube y localmente.', false);
+                return true;
+            } catch (error) {
+                console.error("Error al guardar preguntas en la nube:", error);
+                setFeedback(`Advertencia: Falló el guardado en la nube (${error.message}). Tus cambios están seguros localmente.`, true);
+                updateConnectionStatus('offline');
+                return false;
+            }
+        }
 
-        // --- FUNCIONES DE GESTIÓN (EDITAR/ELIMINAR) ---
+        // --- FUNCIONES DE GESTIÓN ---
         function renderGestionPreguntas() { /* ... (sin cambios) ... */ }
         function openEditModal(event) { /* ... (sin cambios) ... */ }
         async function saveEditChanges() { /* ... (sin cambios) ... */ }
         async function deleteQuestion(event) { /* ... (sin cambios) ... */ }
-        function setEditFeedback(message, isError = false) { /* ... (sin cambios) ... */ }
+        function setEditFeedback(message, isError = false) { 
+            // Usa el elemento correcto para el feedback del modal
+            if(editFeedbackElement) {
+                editFeedbackElement.textContent = message;
+                editFeedbackElement.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+                if (isError) { editFeedbackElement.classList.add('bg-red-100', 'text-red-700'); } 
+                else { editFeedbackElement.classList.add('bg-green-100', 'text-green-700'); }
+            }
+        }
         
         // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
         function showMateriaSelection() { /* ... (sin cambios) ... */ }
@@ -242,12 +454,12 @@
         function selectTema(tema) { /* ... (sin cambios) ... */ }
         function alternarVista() { /* ... (sin cambios) ... */ }
         function populateTemaDatalist() { /* ... (sin cambios) ... */ }
-        function setFeedback(message, isError = false) { /* ... (sin cambios) ... */ }
+        function setFeedback(message, isError = false) { /* ... (sin cambios, usa editorFeedback global) ... */ }
         function getUniqueThemes() { /* ... (sin cambios) ... */ }
 
         // --- FUNCIONES PARA AGREGAR MATERIAS (CON GUARDADO JSONP) ---
         function generateMateriaId(name) { /* ... (sin cambios) ... */ }
-        function addNewMateria() { /* ... (sin cambios) ... */ }
+        function addNewMateria() { /* ... (sin cambios, usa JSONP) ... */ }
         
         // --- FUNCIONES DE ROBUSTEZ Y API ---
         function cleanJsonString(jsonString) { /* ... (sin cambios) ... */ }
@@ -279,37 +491,35 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOM cargado.');
             
-            // 1. Asigna todas las referencias del DOM AHORA que existen
+            // 1. Asigna todas las referencias del DOM
             assignDomReferences(); 
             
-            // 2. Adjunta todos los listeners AHORA que los botones existen
+            // 2. Adjunta todos los listeners (Verifica que todos los elementos existan)
             console.log('Adjuntando listeners...');
-            btnSiguiente.addEventListener('click', siguientePregunta);
-            btnReiniciar.addEventListener('click', () => {
-                if (isRandomMode && preguntas.length > 0) {
-                    shuffleArray(preguntas);
-                }
+            if(btnSiguiente) btnSiguiente.addEventListener('click', siguientePregunta);
+            if(btnReiniciar) btnReiniciar.addEventListener('click', () => {
+                if (isRandomMode && preguntas.length > 0) shuffleArray(preguntas);
                 reiniciarCuestionario();
             });
-            btnAlternarVista.addEventListener('click', alternarVista);
-            btnCambiarMateria.addEventListener('click', showMateriaSelection);
-            btnVolverMateria.addEventListener('click', showMateriaSelection);
-            btnCancelEdit.addEventListener('click', () => editModalOverlay.classList.add('hidden'));
-            btnSaveEdit.addEventListener('click', saveEditChanges);
-            btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false));
-            btnVerifyQuiz.addEventListener('click', () => verifySingleQuestion(true));
-            btnPista.addEventListener('click', getHint);
-            btnEli5.addEventListener('click', getELI5Explanation);
-            btnIaGenerate.addEventListener('click', generateReviewQuestions);
-            btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva);
-            btnAnalizar.addEventListener('click', analyzePastedText);
-            btnGoToEditor.addEventListener('click', () => {
+            if(btnAlternarVista) btnAlternarVista.addEventListener('click', alternarVista);
+            if(btnCambiarMateria) btnCambiarMateria.addEventListener('click', showMateriaSelection);
+            if(btnVolverMateria) btnVolverMateria.addEventListener('click', showMateriaSelection);
+            if(btnCancelEdit) btnCancelEdit.addEventListener('click', () => editModalOverlay.classList.add('hidden'));
+            if(btnSaveEdit) btnSaveEdit.addEventListener('click', saveEditChanges);
+            if(btnVerifyIa) btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false));
+            if(btnVerifyQuiz) btnVerifyQuiz.addEventListener('click', () => verifySingleQuestion(true));
+            if(btnPista) btnPista.addEventListener('click', getHint);
+            if(btnEli5) btnEli5.addEventListener('click', getELI5Explanation);
+            if(btnIaGenerate) btnIaGenerate.addEventListener('click', generateReviewQuestions);
+            if(btnToggleCargaMasiva) btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva);
+            if(btnAnalizar) btnAnalizar.addEventListener('click', analyzePastedText);
+            if(btnGoToEditor) btnGoToEditor.addEventListener('click', () => {
                 temaSelectionContainer.classList.add('hidden');
                 quizHeaderButtons.classList.remove('hidden');
                 alternarVista();
             });
-            btnRandom.addEventListener('click', toggleRandomMode);
-            btnAddMateria.addEventListener('click', addNewMateria);
+            if(btnRandom) btnRandom.addEventListener('click', toggleRandomMode);
+            if(btnAddMateria) btnAddMateria.addEventListener('click', addNewMateria);
             console.log('Listeners adjuntados.');
 
             // 3. Llama a initApp para empezar la carga de datos
@@ -319,4 +529,3 @@
     </script>
     </body>
 </html>
-
