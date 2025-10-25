@@ -314,13 +314,22 @@
 
     <script type="module">
         // --- CONFIGURACIÓN DE LA APP ---
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOM6QsfhWjTYTU0JGkokJts7iv98eDrR8lSq7ebkBJZdLlLHtlRqmrhWXKUZWkFV--AA/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbycXrIsGH_90uWOuIxy0KPKzIfkRnuaOPy0cyghSApezYEmkX46yXkg3j3tsS1h0Yf-Uw/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
         
-        // --- CONFIGURACIÓN DE MATERIAS (MODIFICADO) ---
-        
-        // Las materias ahora se cargarán desde localStorage
-        let MATERIAS = {}; 
-        
+              // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
+        let MATERIAS = {}; // ¡Ahora se carga desde la nube!
+        let allQuestionsFromSheet = []; 
+        let preguntasMateriaCompleta = [];
+        let preguntas = [];
+        let currentMateria = null; 
+        let currentTema = null; 
+        let indicePreguntaActual = 0;
+        let puntaje = 0;
+        let seleccionActual = null;
+        let respuestaComprobada = false;
+        let vistaActual = 'quiz'; 
+        let isRandomMode = false;
+
         // Define los colores por defecto para las materias nuevas
         const MATERIA_COLORS = [
             { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
@@ -331,57 +340,7 @@
             { color: 'bg-emerald-600', hover: 'hover:bg-emerald-700' }
         ];
 
-        // Define las materias iniciales si no hay ninguna guardada
-        const DEFAULT_MATERIAS = {
-            'toxicologia': { name: 'Toxicología', color: MATERIA_COLORS[0].color, hover: MATERIA_COLORS[0].hover },
-            'oftalmologia': { name: 'Oftalmología', color: MATERIA_COLORS[1].color, hover: MATERIA_COLORS[1].hover }
-        };
-
-        /**
-         * Guarda el objeto de materias actual en localStorage.
-         */
-        function saveMaterias() {
-            try {
-                localStorage.setItem('quiz_materias', JSON.stringify(MATERIAS));
-            } catch (e) {
-                console.error("No se pudo guardar la lista de materias:", e);
-            }
-        }
-
-        /**
-         * Carga las materias desde localStorage o usa las de por defecto.
-         */
-        function loadMaterias() {
-            let materiasGuardadas = localStorage.getItem('quiz_materias');
-            if (materiasGuardadas) {
-                try {
-                    MATERIAS = JSON.parse(materiasGuardadas);
-                } catch (e) {
-                    console.error("No se pudieron cargar las materias guardadas, usando default:", e);
-                    MATERIAS = DEFAULT_MATERIAS;
-                }
-            } else {
-                MATERIAS = DEFAULT_MATERIAS;
-                saveMaterias(); // Guarda las de por defecto la primera vez
-            }
-        }
-        // --- FIN DEL NUEVO BLOQUE DE MATERIAS ---
-        
-        // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
-        let allQuestionsFromSheet = []; // Almacena TODAS las preguntas cargadas desde la hoja de cálculo
-        let preguntasMateriaCompleta = [];
-        let preguntas = [];
-        let currentMateria = null; 
-        let currentTema = null; 
-        let indicePreguntaActual = 0;
-        let puntaje = 0;
-        let seleccionActual = null;
-        let respuestaComprobada = false;
-        let vistaActual = 'quiz'; 
-
         // --- REFERENCIAS DEL DOM ---
-        const temasExistentesDatalist = document.getElementById('temas-existentes');
-        const btnAddMateria = document.getElementById('btn-add-materia'); // <-- AÑADIR ESTA LÍNEA
         const appTitle = document.getElementById('app-title');
         const loadingScreen = document.getElementById('loading-screen');
         const loadingMessage = document.getElementById('loading-message');
@@ -420,6 +379,8 @@
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const spinnerContainer = document.getElementById('spinner-container');
+        const btnRandom = document.getElementById('btn-random');
+        const btnAddMateria = document.getElementById('btn-add-materia'); // <-- Botón de Agregar Materia
         
         const editModalOverlay = document.getElementById('edit-modal-overlay');
         const editPregunta = document.getElementById('edit-pregunta');
@@ -464,7 +425,7 @@
                 connectionStatus.textContent = '✅ Sincronizado';
                 connectionStatus.classList.add('bg-green-200', 'text-green-800');
             } else if (status === 'offline') {
-                connectionStatus.textContent = '⚠️ Guardado Local';
+                connectionStatus.textContent = '⚠️ Error Conexión';
                 connectionStatus.classList.add('bg-red-200', 'text-red-800');
             }
         }
@@ -475,23 +436,28 @@
 
         /**
          * FUNCIÓN CALLBACK DE ÉXITO (JSONP)
-         * Esta función es llamada por el script de Google cuando los datos se cargan.
+         * ¡MODIFICADA! Ahora recibe un objeto {materias, preguntas}
          */
-        window.handleQuizData = (rawData) => {
+        window.handleQuizData = (payload) => {
             try {
-                if (rawData.status === 'error') {
+                if (payload.status === 'error') {
                     // Maneja errores DEL LADO DEL SERVIDOR (ej: hoja no encontrada)
-                    throw new Error(rawData.message);
+                    throw new Error(payload.message);
                 }
 
-                // Filtra y procesa los datos como lo hacías antes
+                // 1. Carga las MATERIAS desde la nube
+                MATERIAS = payload.materias || {};
+                
+                // 2. Carga las PREGUNTAS desde la nube
+                const rawData = payload.preguntas || [];
                 allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
 
+                // Guarda un respaldo local de las preguntas
                 localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
                 
                 // Actualiza la UI de carga
                 progressBar.style.width = '100%';
-                loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas! Organizando...`;
+                loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas y ${Object.keys(MATERIAS).length} materias!`;
                 console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas válidas en total desde Google Sheets.`);
                 updateConnectionStatus('online');
                 
@@ -501,14 +467,12 @@
             } catch (error) {
                 console.error("Error al procesar datos de JSONP:", error);
                 loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
-                // Intenta cargar desde local si falla el procesamiento
-                loadFromLocalBackup();
+                loadFromLocalBackup(); // Intenta cargar desde local
             }
         };
 
         /**
          * FUNCIÓN CALLBACK DE ERROR (JSONP)
-         * Se llama si el script de JSONP falla en cargarse (ej: 404, red caída, URL incorrecta)
          */
         window.handleQuizError = (error) => {
              console.error("Error al inicializar la aplicación (JSONP failed):", error);
@@ -517,27 +481,29 @@
         };
 
         /**
-         * FUNCIÓN DE RESPALDO
-         * Carga los datos desde localStorage si la conexión falla.
+         * FUNCIÓN DE RESPALDO (Solo para preguntas)
          */
         function loadFromLocalBackup() {
             updateConnectionStatus('offline');
+            loadingMessage.textContent = "Error de red. Cargando preguntas desde guardado local...";
+            
+            // Carga materias por defecto si falla la red
+            MATERIAS = { 'temporal': { name: 'Error de Red', color: 'bg-red-600', hover: 'hover:bg-red-700' } };
+
             const localData = localStorage.getItem('quiz_data_backup');
             if(localData) {
                 allQuestionsFromSheet = JSON.parse(localData);
-                loadingMessage.textContent = `¡Éxito! Se cargaron ${allQuestionsFromSheet.length} preguntas del guardado local.`;
+                loadingMessage.textContent += ` ¡Éxito! Se cargaron ${allQuestionsFromSheet.length} preguntas del guardado local.`;
             } else {
-                loadingMessage.textContent = "No se encontró un guardado local. La app iniciará vacía.";
+                loadingMessage.textContent += " No se encontró un guardado local de preguntas.";
             }
             setTimeout(() => showMateriaSelection(), 2000);
         }
 
         /**
          * FUNCIÓN initApp (MODIFICADA)
-         * Ahora usa JSONP (inyección de script) en lugar de fetch().
          */
         async function initApp() {
-            loadMaterias();
             updateConnectionStatus('connecting');
             loadingScreen.classList.remove('hidden');
             loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
@@ -546,26 +512,13 @@
             try {
                 loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
                 
-                // --- INICIO DEL CAMBIO (JSONP) ---
-                
-                // 1. Crear un ID único para el script
                 const scriptId = 'jsonp-loader-' + Date.now();
-                
-                // 2. Crear la etiqueta <script>
                 const script = document.createElement('script');
-                
-                // 3. Establecer la URL con el callback. 
-                //    Usamos 'handleQuizData' como el nombre de la función global
                 const cacheBust = new Date().getTime();
                 
-                // AQUÍ ES DONDE SE AÑADE EL PARÁMETRO 'callback'
                 script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`;
                 script.id = scriptId;
-                
-                // 4. Manejar errores de carga del script (ej: red caída, 404, URL incorrecta)
                 script.onerror = handleQuizError;
-                
-                // 5. Inyectar el script en la página. Esto dispara el doGet en Google.
                 document.body.appendChild(script);
                 
                 loadingMessage.textContent = 'Paso 3: Conexión exitosa. Buscando preguntas...';
@@ -573,16 +526,11 @@
                 progressContainer.classList.remove('hidden');
                 progressBar.style.width = '50%';
                 
-                // 6. Limpiar el script después de que se use
                 script.onload = () => {
                     document.getElementById(scriptId)?.remove();
                 };
-                
-                // --- FIN DEL CAMBIO ---
 
             } catch (error) {
-                // Este catch ahora solo agarra errores de la inyección del script,
-                // la lógica de datos real está en 'handleQuizData' y 'handleQuizError'.
                 handleQuizError(error);
             }
         }
@@ -592,31 +540,46 @@
         // =================================================================
 
 
+        /**
+         * FUNCIÓN saveAllQuestionsToSheet (MODIFICADA)
+         * Ahora envía un 'action' y NO usa 'no-cors'
+         */
         async function saveAllQuestionsToSheet(questionsList) {
             // Guardado Local Inmediato
             localStorage.setItem('quiz_data_backup', JSON.stringify(questionsList));
             allQuestionsFromSheet = questionsList;
-            preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
-            renderGestionPreguntas();
+            if (currentMateria) {
+                 preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
+                 renderGestionPreguntas();
+            }
 
             updateConnectionStatus('connecting');
             try {
-                // El método de escritura (POST) con 'no-cors' SÍ funciona y está bien.
-                // No lo cambiamos.
+                // ¡MODIFICADO! Se quitó 'mode: no-cors' y se añadió 'action'
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(questionsList)
+                    body: JSON.stringify({
+                        action: 'saveQuestions',
+                        data: questionsList
+                    })
                 });
                 
-                console.log("Petición de guardado enviada a Google Sheets.");
+                if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+                
+                const result = await response.json();
+                if (result.status !== 'success') {
+                    throw new Error(result.message || 'Error desconocido al guardar en la nube.');
+                }
+                
+                console.log("Petición de guardado enviada y confirmada por Google Sheets.");
                 updateConnectionStatus('online');
                 setFeedback('¡Éxito! Guardado en la nube y localmente.', false);
                 return true;
+
             } catch (error) {
                 console.error("Error al guardar preguntas en la nube:", error);
-                setFeedback("Advertencia: Falló el guardado en la nube. Tus cambios están seguros en este dispositivo.", true);
+                setFeedback(`Advertencia: Falló el guardado en la nube (${error.message}). Tus cambios están seguros en este dispositivo.`, true);
                 updateConnectionStatus('offline');
                 return false;
             }
@@ -685,7 +648,7 @@
         }
 
         function openEditModal(event) {
-            const questionId = parseInt(event.target.dataset.id);
+            const questionId = parseFloat(event.target.dataset.id);
             const question = allQuestionsFromSheet.find(q => q.id === questionId);
 
             if (!question) {
@@ -715,7 +678,7 @@
         }
 
         async function saveEditChanges() {
-            const questionId = parseInt(editQuestionId.value);
+            const questionId = parseFloat(editQuestionId.value);
             const questionIndex = allQuestionsFromSheet.findIndex(q => q.id === questionId);
 
             if (questionIndex === -1) {
@@ -754,7 +717,7 @@
         }
 
         async function deleteQuestion(event) {
-            const questionId = parseInt(event.target.dataset.id);
+            const questionId = parseFloat(event.target.dataset.id);
             
             if (!confirm("¿Estás seguro de que quieres eliminar esta pregunta?")) return;
 
@@ -778,6 +741,10 @@
         
         // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
 
+        /**
+         * FUNCIÓN showMateriaSelection (MODIFICADA)
+         * Ahora lee del objeto MATERIAS cargado desde la nube.
+         */
         function showMateriaSelection() {
             loadingScreen.classList.add('hidden');
             quizContainer.classList.add('hidden');
@@ -791,6 +758,7 @@
             appTitle.textContent = "Selección de Materia";
             materiaButtons.innerHTML = ''; 
 
+            // Itera sobre el objeto MATERIAS cargado
             Object.keys(MATERIAS).forEach(materiaId => {
                 const config = MATERIAS[materiaId];
                 const button = document.createElement('button');
@@ -802,6 +770,11 @@
                 button.addEventListener('click', () => selectMateria(materiaId));
                 materiaButtons.appendChild(button);
             });
+
+            // Si no hay materias, muestra un mensaje
+            if (Object.keys(MATERIAS).length === 0) {
+                 materiaButtons.innerHTML = '<p class="text-gray-500">No hay materias cargadas. ¡Agrega una!</p>';
+            }
         }
 
         function selectMateria(materiaId) {
@@ -809,6 +782,10 @@
             preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === materiaId);
             
             const materiaConfig = MATERIAS[materiaId];
+            if (!materiaConfig) {
+                alert("Error: No se encontró la configuración para esta materia.");
+                return;
+            }
             
             temaSelectionContainer.classList.remove('hidden');
             materiaSelectionContainer.classList.add('hidden');
@@ -831,51 +808,6 @@
             temaButtons.innerHTML = '';
             
             const temasUnicos = getUniqueThemes();
-            /**
-         * Genera un ID simple a partir del nombre de la materia.
-         */
-        function generateMateriaId(name) {
-            return name.toLowerCase()
-                       .trim()
-                       .replace(/\s+/g, '-')     // Reemplaza espacios con -
-                       .replace(/[^a-z0-9-]/g, ''); // Remueve caracteres no alfanuméricos
-        }
-
-        /**
-         * Pide al usuario el nombre de una nueva materia y la agrega.
-         */
-        function addNewMateria() {
-            const materiaName = prompt("Introduce el nombre de la nueva materia:", "Ej: Farmacología");
-            
-            if (!materiaName || materiaName.trim() === "") {
-                return; // El usuario canceló o no escribió nada
-            }
-
-            const materiaId = generateMateriaId(materiaName);
-            
-            if (MATERIAS[materiaId]) {
-                alert("Error: Ya existe una materia con un nombre similar.");
-                return;
-            }
-
-            // Asigna un color del ciclo
-            const nextColorIndex = Object.keys(MATERIAS).length % MATERIA_COLORS.length;
-            const newColor = MATERIA_COLORS[nextColorIndex];
-
-            // Crea y guarda la nueva materia
-            MATERIAS[materiaId] = {
-                name: materiaName.trim(),
-                color: newColor.color,
-                hover: newColor.hover
-            };
-            
-            saveMaterias();
-            
-            // Refresca la lista de botones de materias
-            showMateriaSelection();
-        }
-
-            
             const materiaConfig = MATERIAS[currentMateria];
 
             if (temasUnicos.length > 0) {
@@ -905,7 +837,11 @@
             quizHeaderButtons.classList.remove('hidden');
             
             preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema);
-            if (preguntas.length > 0) shuffleArray(preguntas);
+            
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+
             reiniciarCuestionario();
         }
 
@@ -958,6 +894,84 @@
         function getUniqueThemes() {
             return [...new Set(preguntasMateriaCompleta.map(p => (p.tema || '').trim()).filter(t => t))].sort();
         }
+
+        // --- INICIO: NUEVAS FUNCIONES PARA AGREGAR MATERIAS ---
+        /**
+         * Genera un ID simple a partir del nombre de la materia.
+         */
+        function generateMateriaId(name) {
+            return name.toLowerCase()
+                       .trim()
+                       .replace(/[^a-z0-9-]/g, '') // Remueve caracteres no alfanuméricos y espacios
+                       .replace(/\s+/g, '-');     // Reemplaza espacios con - (aunque el regex anterior ya los quita)
+        }
+
+        /**
+         * Pide al usuario el nombre de una nueva materia y la agrega a la NUBE.
+         */
+        async function addNewMateria() {
+            const materiaName = prompt("Introduce el nombre de la nueva materia:", "Ej: Farmacología");
+            
+            if (!materiaName || materiaName.trim() === "") {
+                return; // El usuario canceló o no escribió nada
+            }
+
+            const materiaId = generateMateriaId(materiaName);
+            
+            if (MATERIAS[materiaId]) {
+                alert("Error: Ya existe una materia con un nombre similar.");
+                return;
+            }
+
+            // Asigna un color del ciclo
+            const nextColorIndex = Object.keys(MATERIAS).length % MATERIA_COLORS.length;
+            const newColor = MATERIA_COLORS[nextColorIndex];
+
+            // 1. Prepara el nuevo objeto de materia
+            const newMateriaObject = {
+                id: materiaId,
+                name: materiaName.trim(),
+                color: newColor.color,
+                hover: newColor.hover
+            };
+
+            // 2. Deshabilita el botón mientras se guarda
+            btnAddMateria.disabled = true;
+            btnAddMateria.textContent = "Guardando en la nube...";
+
+            try {
+                // 3. Envía la nueva materia a Google Sheets
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'addMateria',
+                        data: newMateriaObject
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Error del servidor: ${response.status}`);
+                
+                const result = await response.json();
+                if (result.status !== 'success') {
+                    throw new Error(result.message || 'Error desconocido al guardar la materia.');
+                }
+                
+                // 4. Si tiene éxito, actualiza el estado local y la UI
+                MATERIAS[materiaId] = newMateriaObject;
+                showMateriaSelection(); // Refresca la lista de botones
+
+            } catch (error) {
+                console.error("Error al agregar nueva materia:", error);
+                alert(`No se pudo guardar la materia en la nube: ${error.message}`);
+            } finally {
+                // 5. Reactiva el botón
+                btnAddMateria.disabled = false;
+                btnAddMateria.textContent = "+ Agregar Nueva Materia";
+            }
+        }
+        // --- FIN: NUEVAS FUNCIONES PARA AGREGAR MATERIAS ---
+
         
         // --- FUNCIONES DE ROBUSTEZ Y API ---
 
@@ -999,6 +1013,7 @@
         }
         
         // --- ✨ NUEVAS FUNCIONES DE IA (GEMINI API) ✨ ---
+        // (Usando el nombre de modelo corregido)
         
         async function getHint() {
             const pregunta = preguntas[indicePreguntaActual];
@@ -1109,19 +1124,17 @@
                     throw new Error("La IA no devolvió preguntas válidas.");
                 }
                 
-                // Corrección: Usar la variable correcta
                 const jsonString = cleanJsonString(candidate.content.parts[0].text);
                 const newQuestions = JSON.parse(jsonString);
 
                 if (Array.isArray(newQuestions) && newQuestions.length > 0) {
                     
-                    // Asignar materia e ID a las nuevas preguntas
                     const highestId = allQuestionsFromSheet.reduce((max, q) => Math.max(max, q.id), 0);
-                    let currentId = highestId + 1;
+                    let currentId = Math.floor(highestId) + 1;
                     
                     const questionsToAdd = newQuestions.map(q => ({
                         ...q,
-                        materia: currentMateria,
+                        materia: currentMateria, // Asigna la materia actual
                         id: currentId++
                     }));
                     
@@ -1138,8 +1151,8 @@
             } catch(error) {
                  console.error("Error al generar preguntas con IA:", error);
                  let errorMessage = error.message;
-                 if (errorMessage.includes("403")) {
-                     errorMessage = "Error de Autenticación (403). No se pudo acceder a la IA. Inserta tu clave API.";
+                 if (error.message.includes("API key not valid")) {
+                     errorMessage = "Error de Autenticación. La clave API de Gemini no es válida.";
                  }
                  setFeedback(`Error al generar preguntas: ${errorMessage}`, true);
             } finally {
@@ -1153,7 +1166,7 @@
         // --- FUNCIONES DE VALIDACIÓN Y CARGA MASIVA ---
         
         async function verifySingleQuestion(isFromQuiz = false) {
-            const questionId = isFromQuiz ? preguntas[indicePreguntaActual].id : parseInt(editQuestionId.value);
+            const questionId = isFromQuiz ? preguntas[indicePreguntaActual].id : parseFloat(editQuestionId.value);
             const question = allQuestionsFromSheet.find(q => q.id === questionId);
             if (!question) return;
 
@@ -1178,12 +1191,10 @@
 
                     if(success) {
                         if(isFromQuiz) {
-                             // Actualizar UI del quiz
                              preguntas[indicePreguntaActual] = validatedQ;
                              justificacionTexto.textContent = validatedQ.justificacion;
                              feedbackEl.textContent = '¡Verificado y actualizado!';
                         } else {
-                            // Actualizar UI del modal
                             editCorrectaIndex.value = validatedQ.correctaindex;
                             editJustificacion.value = validatedQ.justificacion;
                             feedbackEl.textContent = '¡Verificado! Haz clic en Guardar para confirmar.';
@@ -1309,7 +1320,7 @@
                 }
                 
                 const highestId = allQuestionsFromSheet.reduce((max, q) => Math.max(max, q.id), 0);
-                let currentId = highestId + 1;
+                let currentId = Math.floor(highestId) + 1;
 
                 const newQuestions = newQuestionsRaw.map(q => ({
                     ...q,
@@ -1447,6 +1458,26 @@
             }
         }
 
+        function toggleRandomMode() {
+            isRandomMode = !isRandomMode; 
+            if (isRandomMode) {
+                btnRandom.classList.replace('bg-gray-200', 'bg-indigo-600');
+                btnRandom.classList.replace('text-gray-700', 'text-white');
+                btnRandom.textContent = 'Random ON 🔀';
+            } else {
+                btnRandom.classList.replace('bg-indigo-600', 'bg-gray-200');
+                btnRandom.classList.replace('text-white', 'text-gray-700');
+                btnRandom.textContent = 'Random 🔀';
+            }
+            if(currentTema) {
+                preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === currentTema);
+            }
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+            reiniciarCuestionario(); 
+        }
+
         function toggleCargaMasiva() {
             cargaMasivaContainer.classList.toggle('hidden');
             const isHidden = cargaMasivaContainer.classList.contains('hidden');
@@ -1478,14 +1509,17 @@
             resultadosContainer.classList.add('hidden');
             quizContainer.classList.remove('hidden');
             quizHeaderButtons.classList.remove('hidden');
-         //   if (preguntas.length > 0) shuffleArray(preguntas);// COMENTADO PARA BARAJAR PREGUNTAS
             cargarPregunta();
         }
 
         // --- LISTENERS DE EVENTOS ---
-        btnAddMateria.addEventListener('click', addNewMateria);
         btnSiguiente.addEventListener('click', siguientePregunta);
-        btnReiniciar.addEventListener('click', reiniciarCuestionario);
+        btnReiniciar.addEventListener('click', () => {
+            if (isRandomMode && preguntas.length > 0) {
+                shuffleArray(preguntas);
+            }
+            reiniciarCuestionario();
+        });
         btnAlternarVista.addEventListener('click', alternarVista);
         btnCambiarMateria.addEventListener('click', showMateriaSelection);
         btnVolverMateria.addEventListener('click', showMateriaSelection);
@@ -1505,17 +1539,21 @@
             quizHeaderButtons.classList.remove('hidden');
             alternarVista();
         });
+        
+        btnRandom.addEventListener('click', toggleRandomMode);
+        btnAddMateria.addEventListener('click', addNewMateria); // <-- Listener para Agregar Materia
 
 
         // --- INICIO DE LA APLICACIÓN ---
         window.onload = function() {
-            // Se asegura que las funciones globales estén listas antes de llamar a initApp
             initApp();
         }
     </script>
+
 </body>
 
 </html>
+
 
 
 
