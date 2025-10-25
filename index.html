@@ -440,10 +440,15 @@
 
 
         // --- INICIO DE LA APLICACIÓN ---
-        // Llama a initApp directamente
-        initApp();
+      // --- INICIO DE LA APLICACIÓN (CORREGIDO) ---
+// Espera a que el HTML esté completamente cargado antes de ejecutar CUALQUIER código
+document.addEventListener('DOMContentLoaded', (event) => {
+    console.log('DOM completamente cargado y parseado. Iniciando app...');
+    initApp(); // Ahora llamamos a initApp() aquí dentro
+});
         
     </script>
     </body>
 </html>
+
 
