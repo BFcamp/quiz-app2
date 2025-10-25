@@ -6,89 +6,20 @@
     <title>Quiz App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Estilo personalizado para las opciones de respuesta */
-        .opcion-btn {
-            transition: all 0.2s;
-        }
-        /* Clase para la respuesta seleccionada/no revisada */
-        .opcion-btn:not(.correcto):not(.incorrecto):hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-        /* Clases de estado dinámico */
-        .seleccionada {
-            border: 3px solid #6366f1; /* Indigo */
-        }
-        .correcta {
-            background-color: #10b981 !important; /* Esmeralda 500 */
-            color: white !important;
-            border-color: #059669 !important;
-        }
-        .incorrecto {
-            background-color: #ef4444 !important; /* Rojo 500 */
-            color: white !important;
-            border-color: #dc2626 !important;
-        }
-        .hidden-transition {
-            opacity: 0;
-            max-height: 0;
-            overflow: hidden;
-            transition: opacity 0.3s ease-out, max-height 0.3s ease-out;
-        }
-        .visible-transition {
-            opacity: 1;
-            max-height: 500px; /* Suficiente para mostrar el contenido */
-        }
-        /* Spinner CSS */
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.2);
-            border-top: 4px solid #4f46e5;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        /* Estilos para el modal */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: white;
-            padding: 24px;
-            border-radius: 12px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        /* Barra de Progreso */
-        .progress-bar-container {
-            width: 100%;
-            background-color: #e0e7ff;
-            border-radius: 9999px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 10px;
-            width: 0%;
-            background-color: #4f46e5;
-            border-radius: 9999px;
-            transition: width 1s ease-in-out;
-        }
+        /* ... (Todo tu CSS <style> va aquí, no ha cambiado) ... */
+        .opcion-btn { transition: all 0.2s; }
+        .opcion-btn:not(.correcto):not(.incorrecto):hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
+        .seleccionada { border: 3px solid #6366f1; }
+        .correcta { background-color: #10b981 !important; color: white !important; border-color: #059669 !important; }
+        .incorrecto { background-color: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
+        .hidden-transition { opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.3s ease-out, max-height 0.3s ease-out; }
+        .visible-transition { opacity: 1; max-height: 500px; }
+        .spinner { border: 4px solid rgba(0, 0, 0, 0.2); border-top: 4px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: white; padding: 24px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .progress-bar-container { width: 100%; background-color: #e0e7ff; border-radius: 9999px; overflow: hidden; }
+        .progress-bar { height: 10px; width: 0%; background-color: #4f46e5; border-radius: 9999px; transition: width 1s ease-in-out; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4" style="font-family: 'Inter', sans-serif;">
@@ -125,7 +56,6 @@
                 </div>
 
         </div>
-        </div>
 
         <div id="tema-selection-container" class="hidden text-center p-10">
             <button id="btn-volver-materia"
@@ -147,7 +77,12 @@
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Cambiar Materia
             </button>
-             <button id="btn-alternar-vista"
+            
+            <button id="btn-random"
+                    class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
+                Random 🔀
+            </button>
+            <button id="btn-alternar-vista"
                     class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">
                 Mostrar Editor
             </button>
@@ -314,9 +249,10 @@
 
     <script type="module">
         // --- CONFIGURACIÓN DE LA APP ---
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbycXrIsGH_90uWOuIxy0KPKzIfkRnuaOPy0cyghSApezYEmkX46yXkg3j3tsS1h0Yf-Uw/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
+        // Usa la URL que ya tienes en tu archivo
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOM6QsfhWjTYTU0JGkokJts7iv98eDrR8lSq7ebkBJZdLlLHtlRqmrhWXKUZWkFV--AA/exec";
         
-              // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
+        // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
         let MATERIAS = {}; // ¡Ahora se carga desde la nube!
         let allQuestionsFromSheet = []; 
         let preguntasMateriaCompleta = [];
@@ -380,7 +316,7 @@
         const progressBar = document.getElementById('progress-bar');
         const spinnerContainer = document.getElementById('spinner-container');
         const btnRandom = document.getElementById('btn-random');
-        const btnAddMateria = document.getElementById('btn-add-materia'); // <-- Botón de Agregar Materia
+        const btnAddMateria = document.getElementById('btn-add-materia');
         
         const editModalOverlay = document.getElementById('edit-modal-overlay');
         const editPregunta = document.getElementById('edit-pregunta');
@@ -431,7 +367,7 @@
         }
         
         // =================================================================
-        // == INICIO DE LA MODIFICACIÓN (JSONP) ==
+        // == LÓGICA DE CARGA (JSONP) - CORREGIDA PARA RECIBIR OBJETOS ==
         // =================================================================
 
         /**
@@ -441,7 +377,6 @@
         window.handleQuizData = (payload) => {
             try {
                 if (payload.status === 'error') {
-                    // Maneja errores DEL LADO DEL SERVIDOR (ej: hoja no encontrada)
                     throw new Error(payload.message);
                 }
 
@@ -452,22 +387,19 @@
                 const rawData = payload.preguntas || [];
                 allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
 
-                // Guarda un respaldo local de las preguntas
                 localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
                 
-                // Actualiza la UI de carga
                 progressBar.style.width = '100%';
                 loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas y ${Object.keys(MATERIAS).length} materias!`;
                 console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas válidas en total desde Google Sheets.`);
                 updateConnectionStatus('online');
                 
-                // Avanza a la siguiente pantalla
                 setTimeout(showMateriaSelection, 1200);
 
             } catch (error) {
                 console.error("Error al procesar datos de JSONP:", error);
                 loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
-                loadFromLocalBackup(); // Intenta cargar desde local
+                loadFromLocalBackup(); 
             }
         };
 
@@ -487,7 +419,6 @@
             updateConnectionStatus('offline');
             loadingMessage.textContent = "Error de red. Cargando preguntas desde guardado local...";
             
-            // Carga materias por defecto si falla la red
             MATERIAS = { 'temporal': { name: 'Error de Red', color: 'bg-red-600', hover: 'hover:bg-red-700' } };
 
             const localData = localStorage.getItem('quiz_data_backup');
@@ -504,9 +435,10 @@
          * FUNCIÓN initApp (MODIFICADA)
          */
         async function initApp() {
+            // ¡EL TEXTO CAMBIA AQUÍ!
+            loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
             updateConnectionStatus('connecting');
             loadingScreen.classList.remove('hidden');
-            loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
             await new Promise(resolve => setTimeout(resolve, 500));
             
             try {
@@ -536,7 +468,7 @@
         }
         
         // =================================================================
-        // == FIN DE LA MODIFICACIÓN (JSONP) ==
+        // == FIN DE LA LÓGICA DE CARGA ==
         // =================================================================
 
 
@@ -545,7 +477,6 @@
          * Ahora envía un 'action' y NO usa 'no-cors'
          */
         async function saveAllQuestionsToSheet(questionsList) {
-            // Guardado Local Inmediato
             localStorage.setItem('quiz_data_backup', JSON.stringify(questionsList));
             allQuestionsFromSheet = questionsList;
             if (currentMateria) {
@@ -555,7 +486,6 @@
 
             updateConnectionStatus('connecting');
             try {
-                // ¡MODIFICADO! Se quitó 'mode: no-cors' y se añadió 'action'
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -741,10 +671,6 @@
         
         // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
 
-        /**
-         * FUNCIÓN showMateriaSelection (MODIFICADA)
-         * Ahora lee del objeto MATERIAS cargado desde la nube.
-         */
         function showMateriaSelection() {
             loadingScreen.classList.add('hidden');
             quizContainer.classList.add('hidden');
@@ -758,7 +684,6 @@
             appTitle.textContent = "Selección de Materia";
             materiaButtons.innerHTML = ''; 
 
-            // Itera sobre el objeto MATERIAS cargado
             Object.keys(MATERIAS).forEach(materiaId => {
                 const config = MATERIAS[materiaId];
                 const button = document.createElement('button');
@@ -771,7 +696,6 @@
                 materiaButtons.appendChild(button);
             });
 
-            // Si no hay materias, muestra un mensaje
             if (Object.keys(MATERIAS).length === 0) {
                  materiaButtons.innerHTML = '<p class="text-gray-500">No hay materias cargadas. ¡Agrega una!</p>';
             }
@@ -896,24 +820,18 @@
         }
 
         // --- INICIO: NUEVAS FUNCIONES PARA AGREGAR MATERIAS ---
-        /**
-         * Genera un ID simple a partir del nombre de la materia.
-         */
         function generateMateriaId(name) {
             return name.toLowerCase()
                        .trim()
-                       .replace(/[^a-z0-9-]/g, '') // Remueve caracteres no alfanuméricos y espacios
-                       .replace(/\s+/g, '-');     // Reemplaza espacios con - (aunque el regex anterior ya los quita)
+                       .replace(/[^a-z0-9-]/g, '') 
+                       .replace(/\s+/g, '-');
         }
 
-        /**
-         * Pide al usuario el nombre de una nueva materia y la agrega a la NUBE.
-         */
         async function addNewMateria() {
             const materiaName = prompt("Introduce el nombre de la nueva materia:", "Ej: Farmacología");
             
             if (!materiaName || materiaName.trim() === "") {
-                return; // El usuario canceló o no escribió nada
+                return;
             }
 
             const materiaId = generateMateriaId(materiaName);
@@ -923,11 +841,9 @@
                 return;
             }
 
-            // Asigna un color del ciclo
             const nextColorIndex = Object.keys(MATERIAS).length % MATERIA_COLORS.length;
             const newColor = MATERIA_COLORS[nextColorIndex];
 
-            // 1. Prepara el nuevo objeto de materia
             const newMateriaObject = {
                 id: materiaId,
                 name: materiaName.trim(),
@@ -935,12 +851,10 @@
                 hover: newColor.hover
             };
 
-            // 2. Deshabilita el botón mientras se guarda
             btnAddMateria.disabled = true;
             btnAddMateria.textContent = "Guardando en la nube...";
 
             try {
-                // 3. Envía la nueva materia a Google Sheets
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -957,15 +871,13 @@
                     throw new Error(result.message || 'Error desconocido al guardar la materia.');
                 }
                 
-                // 4. Si tiene éxito, actualiza el estado local y la UI
                 MATERIAS[materiaId] = newMateriaObject;
-                showMateriaSelection(); // Refresca la lista de botones
+                showMateriaSelection(); 
 
             } catch (error) {
                 console.error("Error al agregar nueva materia:", error);
                 alert(`No se pudo guardar la materia en la nube: ${error.message}`);
             } finally {
-                // 5. Reactiva el botón
                 btnAddMateria.disabled = false;
                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
             }
@@ -1013,7 +925,6 @@
         }
         
         // --- ✨ NUEVAS FUNCIONES DE IA (GEMINI API) ✨ ---
-        // (Usando el nombre de modelo corregido)
         
         async function getHint() {
             const pregunta = preguntas[indicePreguntaActual];
@@ -1134,7 +1045,7 @@
                     
                     const questionsToAdd = newQuestions.map(q => ({
                         ...q,
-                        materia: currentMateria, // Asigna la materia actual
+                        materia: currentMateria,
                         id: currentId++
                     }));
                     
@@ -1325,7 +1236,7 @@
                 const newQuestions = newQuestionsRaw.map(q => ({
                     ...q,
                     materia: currentMateria,
-                    id: currentId++ // Simple unique ID
+                    id: currentId++
                 }));
 
                 const allQuestions = [...allQuestionsFromSheet, ...newQuestions];
@@ -1541,21 +1452,13 @@
         });
         
         btnRandom.addEventListener('click', toggleRandomMode);
-        btnAddMateria.addEventListener('click', addNewMateria); // <-- Listener para Agregar Materia
+        btnAddMateria.addEventListener('click', addNewMateria);
 
 
-        // --- INICIO DE LA APLICACIÓN ---
-        window.onload = function() {
-            initApp();
-        }
+        // --- INICIO DE LA APLICACIÓN (¡CORREGIDO!) ---
+        // Se llama a initApp() directamente al final del módulo
+        initApp();
+        
     </script>
-
-</body>
-
+    </body>
 </html>
-
-
-
-
-
-
