@@ -143,7 +143,7 @@
                 Mostrar Editor
             </button>
         </div>
-
+        <button id="btn-random">Random 🔀</button>
         <div id="editor-container" class="hidden">
             <h2 class="text-2xl font-bold text-indigo-600 mb-4">Panel de Gestión (<span id="editor-materia-nombre">Materia</span>)</h2>
             
@@ -352,6 +352,7 @@
         const btnReiniciar = document.getElementById('btn-reiniciar');
         const resultadoFinal = document.getElementById('resultado-final');
         const editorContainer = document.getElementById('editor-container');
+        const btnRandom = document.getElementById('btn-random');
         const btnAlternarVista = document.getElementById('btn-alternar-vista');
         const btnCambiarMateria = document.getElementById('btn-cambiar-materia');
         const btnVolverMateria = document.getElementById('btn-volver-materia');
@@ -414,7 +415,21 @@
                 connectionStatus.classList.add('bg-red-200', 'text-red-800');
             }
         }
-        
+//usar randomizer
+        function toggleRandomMode() {
+    isRandomMode = !isRandomMode; // Cambia el estado
+    // ... (código para cambiar el estilo del botón) ...
+
+    // Vuelve a cargar las preguntas del tema actual
+    preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === currentTema);
+
+    // ¡USA LA HERRAMIENTA! Solo si el modo está activo
+    if (isRandomMode && preguntas.length > 0) {
+        shuffleArray(preguntas); // Aquí llamas a la función importada
+    }
+
+    reiniciarCuestionario(); // Muestra la primera pregunta (barajada o no)
+}
         // =================================================================
         // == INICIO DE LA MODIFICACIÓN (JSONP) ==
         // =================================================================
@@ -609,6 +624,15 @@
                     document.getElementById(`icon-${collapseId}`).style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
                 });
 
+                // Esto debe estar DENTRO del listener DOMContentLoaded
+                document.addEventListener('DOMContentLoaded', () => {
+                // ... (otras asignaciones y listeners) ...
+                if(btnRandom) { // Asegura que el botón exista
+                     btnRandom.addEventListener('click', toggleRandomMode);
+                }
+                // ...
+            });
+                
                 listaPreguntas.forEach((q, index) => {
                     const qElement = document.createElement('div');
                     qElement.classList.add('p-3', 'bg-white', 'border', 'rounded-lg', 'shadow-sm');
@@ -1408,6 +1432,7 @@
     </script>
 </body>
 </html>
+
 
 
 
