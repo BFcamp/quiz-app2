@@ -304,6 +304,9 @@
     </div>
 
     <script type="module">
+    // Importa la función desde el nuevo archivo
+        import { shuffleArray } from './randomizer.js';
+        
         // --- CONFIGURACIÓN DE LA APP ---
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjqW9XyfSHOKWAvZ2Nsm6apsNsM6_5n-6uRik4PHLzcjiqEMJIXQ0cvC5n3RN_B4Cd/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
         
@@ -1336,10 +1339,7 @@
         }
         
         // --- MANEJO DE VISTAS DEL EDITOR ---
-       <script type="module">
-    // Importa la función desde el nuevo archivo
-    import { shuffleArray } from './randomizer.js';
-        
+   
 
         function toggleCargaMasiva() {
             cargaMasivaContainer.classList.toggle('hidden');
@@ -1408,6 +1408,7 @@
     </script>
 </body>
 </html>
+
 
 
 
