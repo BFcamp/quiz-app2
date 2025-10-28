@@ -67,22 +67,23 @@
     </div>
 
     <script type="module">
-        // Importa la función desde el archivo randomizer.js
+        // Importa la función desde el archivo randomizer.js (asegúrate que exista)
         import { shuffleArray } from './randomizer.js';
 
         // --- CONFIGURACIÓN DE LA APP ---
-        // URL de Google Apps Script proporcionada por el usuario
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxoKETyeKu3F6vziCMWi8srJAzYv0yrR_ONgSpOpczS23BZ8Ow6eU0uigXRcGlHUuwBiQ/exec";
 
         // --- VARIABLES DE ESTADO ---
-        let MATERIAS = {}; // Se cargará desde Google Script
-        let allQuestionsFromSheet = []; let preguntasMateriaCompleta = []; let preguntas = [];
-        let currentMateria = null; let currentTema = null; let indicePreguntaActual = 0;
-        let puntaje = 0; let seleccionActual = null; let respuestaComprobada = false;
-        let vistaActual = 'quiz';
-        let isRandomMode = false; // Estado para el botón Random
+        let MATERIAS = {}; let allQuestionsFromSheet = []; let preguntasMateriaCompleta = [];
+        let preguntas = []; let currentMateria = null; let currentTema = null;
+        let indicePreguntaActual = 0; let puntaje = 0; let seleccionActual = null;
+        let respuestaComprobada = false; let vistaActual = 'quiz'; let isRandomMode = false;
 
-        const MATERIA_COLORS = [ /* ... (lista de colores) ... */ ];
+        const MATERIA_COLORS = [
+             { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' }, { color: 'bg-teal-600', hover: 'hover:bg-teal-700' },
+             { color: 'bg-rose-600', hover: 'hover:bg-rose-700' }, { color: 'bg-amber-600', hover: 'hover:bg-amber-700' },
+             { color: 'bg-sky-600', hover: 'hover:bg-sky-700' }, { color: 'bg-emerald-600', hover: 'hover:bg-emerald-700' }
+        ];
 
         // --- REFERENCIAS DEL DOM (Declaradas, se asignan en DOMContentLoaded) ---
         let appTitle, loadingScreen, loadingMessage, materiaSelectionContainer, materiaButtons, temaSelectionContainer,
@@ -101,76 +102,87 @@
 
         /** Asigna todas las referencias del DOM */
         function assignDomReferences() {
-            appTitle = document.getElementById('app-title');
-            loadingScreen = document.getElementById('loading-screen');
-            loadingMessage = document.getElementById('loading-message');
-            materiaSelectionContainer = document.getElementById('materia-selection-container');
-            materiaButtons = document.getElementById('materia-buttons');
-            temaSelectionContainer = document.getElementById('tema-selection-container');
-            temaButtons = document.getElementById('tema-buttons');
-            currentMateriaName = document.getElementById('current-materia-name');
-            noTemasMessage = document.getElementById('no-temas-message');
-            quizContainer = document.getElementById('quiz-container');
-            resultadosContainer = document.getElementById('resultados-container');
-            preguntaTexto = document.getElementById('pregunta-texto');
-            opcionesContainer = document.getElementById('opciones-container');
-            contadorPregunta = document.getElementById('contador-pregunta');
-            puntajeSpan = document.getElementById('puntaje');
-            totalPreguntasSpan = document.getElementById('total-preguntas');
-            feedbackContainer = document.getElementById('feedback-container');
-            feedbackTexto = document.getElementById('feedback-texto');
-            justificacionBox = document.getElementById('justificacion-box');
-            justificacionTexto = document.getElementById('justificacion-texto');
-            btnSiguiente = document.getElementById('btn-siguiente');
-            btnReiniciar = document.getElementById('btn-reiniciar');
-            resultadoFinal = document.getElementById('resultado-final');
-            editorContainer = document.getElementById('editor-container');
-            btnAlternarVista = document.getElementById('btn-alternar-vista');
-            btnCambiarMateria = document.getElementById('btn-cambiar-materia');
-            btnVolverMateria = document.getElementById('btn-volver-materia');
-            quizHeaderButtons = document.getElementById('quiz-header-buttons');
-            editorMateriaNombre = document.getElementById('editor-materia-nombre');
-            editorFeedback = document.getElementById('editor-feedback'); // Feedback general editor
-            currentTemaName = document.getElementById('current-tema-name');
-            totalPreguntasEditor = document.getElementById('total-preguntas-editor');
-            gestionPreguntasContainer = document.getElementById('gestion-preguntas-container');
-            connectionStatus = document.getElementById('connection-status');
-            btnGoToEditor = document.getElementById('btn-go-to-editor');
-            progressContainer = document.getElementById('progress-container');
-            progressBar = document.getElementById('progress-bar');
-            spinnerContainer = document.getElementById('spinner-container');
-            btnRandom = document.getElementById('btn-random');
-            btnAddMateria = document.getElementById('btn-add-materia');
-            editModalOverlay = document.getElementById('edit-modal-overlay');
-            editPregunta = document.getElementById('edit-pregunta');
-            editTema = document.getElementById('edit-tema');
-            editOpcionesContainer = document.getElementById('edit-opciones-container');
-            editCorrectaIndex = document.getElementById('edit-correcta-index');
-            editJustificacion = document.getElementById('edit-justificacion');
-            editQuestionId = document.getElementById('edit-question-id');
-            btnSaveEdit = document.getElementById('btn-save-edit');
-            btnCancelEdit = document.getElementById('btn-cancel-edit');
-            btnVerifyIa = document.getElementById('btn-verify-ia');
-            editFeedbackElement = document.getElementById('edit-feedback'); // Feedback del modal
-            btnPista = document.getElementById('btn-pista');
-            pistaContainer = document.getElementById('pista-container');
-            btnEli5 = document.getElementById('btn-eli5');
-            eli5Container = document.getElementById('eli5-container');
-            btnIaGenerate = document.getElementById('btn-ia-generate');
-            iaGenerateTopicInput = document.getElementById('ia-generate-topic-input');
-            iaGenerateSpinner = document.getElementById('ia-generate-spinner');
-            iaGenerateText = document.getElementById('ia-generate-text');
-            btnVerifyQuiz = document.getElementById('btn-verify-quiz');
-            verifyQuizFeedback = document.getElementById('verify-quiz-feedback');
-            btnToggleCargaMasiva = document.getElementById('btn-toggle-carga-masiva');
-            cargaMasivaContainer = document.getElementById('carga-masiva-container');
-            temaInput = document.getElementById('tema-input');
-            textoPdf = document.getElementById('texto-pdf');
-            btnAnalizar = document.getElementById('btn-analizar');
-            analizarText = document.getElementById('analizar-text');
-            analizarSpinner = document.getElementById('analizar-spinner');
-            temasExistentesDatalist = document.getElementById('temas-existentes');
+            try {
+                appTitle = document.getElementById('app-title');
+                loadingScreen = document.getElementById('loading-screen');
+                loadingMessage = document.getElementById('loading-message');
+                materiaSelectionContainer = document.getElementById('materia-selection-container');
+                materiaButtons = document.getElementById('materia-buttons');
+                temaSelectionContainer = document.getElementById('tema-selection-container');
+                temaButtons = document.getElementById('tema-buttons');
+                currentMateriaName = document.getElementById('current-materia-name');
+                noTemasMessage = document.getElementById('no-temas-message');
+                quizContainer = document.getElementById('quiz-container');
+                resultadosContainer = document.getElementById('resultados-container');
+                preguntaTexto = document.getElementById('pregunta-texto');
+                opcionesContainer = document.getElementById('opciones-container');
+                contadorPregunta = document.getElementById('contador-pregunta');
+                puntajeSpan = document.getElementById('puntaje');
+                totalPreguntasSpan = document.getElementById('total-preguntas');
+                feedbackContainer = document.getElementById('feedback-container');
+                feedbackTexto = document.getElementById('feedback-texto');
+                justificacionBox = document.getElementById('justificacion-box');
+                justificacionTexto = document.getElementById('justificacion-texto');
+                btnSiguiente = document.getElementById('btn-siguiente');
+                btnReiniciar = document.getElementById('btn-reiniciar');
+                resultadoFinal = document.getElementById('resultado-final');
+                editorContainer = document.getElementById('editor-container');
+                btnAlternarVista = document.getElementById('btn-alternar-vista');
+                btnCambiarMateria = document.getElementById('btn-cambiar-materia');
+                btnVolverMateria = document.getElementById('btn-volver-materia');
+                quizHeaderButtons = document.getElementById('quiz-header-buttons');
+                editorMateriaNombre = document.getElementById('editor-materia-nombre');
+                editorFeedback = document.getElementById('editor-feedback');
+                currentTemaName = document.getElementById('current-tema-name');
+                totalPreguntasEditor = document.getElementById('total-preguntas-editor');
+                gestionPreguntasContainer = document.getElementById('gestion-preguntas-container');
+                connectionStatus = document.getElementById('connection-status');
+                btnGoToEditor = document.getElementById('btn-go-to-editor');
+                progressContainer = document.getElementById('progress-container');
+                progressBar = document.getElementById('progress-bar');
+                spinnerContainer = document.getElementById('spinner-container');
+                btnRandom = document.getElementById('btn-random');
+                btnAddMateria = document.getElementById('btn-add-materia');
+                editModalOverlay = document.getElementById('edit-modal-overlay');
+                editPregunta = document.getElementById('edit-pregunta');
+                editTema = document.getElementById('edit-tema');
+                editOpcionesContainer = document.getElementById('edit-opciones-container');
+                editCorrectaIndex = document.getElementById('edit-correcta-index');
+                editJustificacion = document.getElementById('edit-justificacion');
+                editQuestionId = document.getElementById('edit-question-id');
+                btnSaveEdit = document.getElementById('btn-save-edit');
+                btnCancelEdit = document.getElementById('btn-cancel-edit');
+                btnVerifyIa = document.getElementById('btn-verify-ia');
+                editFeedbackElement = document.getElementById('edit-feedback'); // Asigna al mismo ID que editorFeedback
+                btnPista = document.getElementById('btn-pista');
+                pistaContainer = document.getElementById('pista-container');
+                btnEli5 = document.getElementById('btn-eli5');
+                eli5Container = document.getElementById('eli5-container');
+                btnIaGenerate = document.getElementById('btn-ia-generate');
+                iaGenerateTopicInput = document.getElementById('ia-generate-topic-input');
+                iaGenerateSpinner = document.getElementById('ia-generate-spinner');
+                iaGenerateText = document.getElementById('ia-generate-text');
+                btnVerifyQuiz = document.getElementById('btn-verify-quiz');
+                verifyQuizFeedback = document.getElementById('verify-quiz-feedback');
+                btnToggleCargaMasiva = document.getElementById('btn-toggle-carga-masiva');
+                cargaMasivaContainer = document.getElementById('carga-masiva-container');
+                temaInput = document.getElementById('tema-input');
+                textoPdf = document.getElementById('texto-pdf');
+                btnAnalizar = document.getElementById('btn-analizar');
+                analizarText = document.getElementById('analizar-text');
+                analizarSpinner = document.getElementById('analizar-spinner');
+                temasExistentesDatalist = document.getElementById('temas-existentes');
+                console.log("Referencias DOM asignadas.");
+            } catch (error) {
+                console.error("Error asignando referencias DOM:", error);
+                // Muestra un error al usuario si falla la asignación inicial
+                if(loadingMessage) loadingMessage.textContent = "Error al cargar la interfaz. Recarga la página.";
+                if(loadingScreen && !loadingScreen.classList.contains('hidden')) { // Solo si aún está visible
+                     if(spinnerContainer) spinnerContainer.classList.add('hidden');
+                }
+            }
         }
+
 
         // --- GOOGLE SHEETS Y PERSISTENCIA ---
         function updateConnectionStatus(status, message = '') { /* ... (sin cambios) ... */ }
@@ -178,112 +190,191 @@
         // ==========================================
         // == LÓGICA DE CARGA Y GUARDADO (JSONP) ==
         // ==========================================
-        window.handleQuizData = (payload) => { /* ... (Usa tu versión que recibe {materias, preguntas}) ... */ };
-        window.handleSaveResult = (payload) => { /* ... (Función para manejar el resultado de guardar materia con JSONP) ... */ };
-        window.handleJSONPError = (error) => { /* ... (Manejo de errores JSONP) ... */ };
-        function loadFromLocalBackup() { /* ... (Carga local si falla la red) ... */ }
-        async function initApp() { /* ... (Inicia carga JSONP para {materias, preguntas}) ... */ }
-        async function saveAllQuestionsToSheet(questionsList) { /* ... (Usa FETCH para guardar preguntas) ... */ }
+        window.handleQuizData = (payload) => {
+             console.log("Recibido handleQuizData:", payload); // Log para depurar
+             try {
+                if (!payload || payload.status === 'error') throw new Error(payload?.message || 'Respuesta inválida del servidor');
+                MATERIAS = payload.materias || {};
+                const rawData = payload.preguntas || [];
+                allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
+                localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
+
+                if (progressBar) progressBar.style.width = '100%';
+                if (loadingMessage) loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas y ${Object.keys(MATERIAS).length} materias!`;
+                console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas. Materias:`, MATERIAS);
+                updateConnectionStatus('online');
+
+                console.log("Datos procesados. Llamando a showMateriaSelection...");
+                showMateriaSelection(); // Llama directamente
+
+            } catch (error) {
+                console.error("Error al procesar datos de JSONP:", error);
+                if (loadingMessage) loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
+                loadFromLocalBackup();
+            }
+        };
+        window.handleSaveResult = (payload) => {
+            console.log("Recibido handleSaveResult:", payload); // Log para depurar
+             document.querySelectorAll('script[id^="jsonp-saver-"]').forEach(script => script.remove());
+
+            if (btnAddMateria) {
+                 btnAddMateria.disabled = false;
+                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
+            }
+
+            if (payload && payload.status === 'success') {
+                console.log("Materia guardada:", payload.saved_materia);
+                MATERIAS[payload.saved_materia.id] = payload.saved_materia;
+                showMateriaSelection();
+            } else {
+                console.error("Error al guardar materia:", payload?.message || 'Respuesta inválida');
+                alert(`No se pudo guardar la materia en la nube: ${payload?.message || 'Respuesta inválida'}`);
+            }
+        };
+        window.handleJSONPError = (error) => {
+            console.error("Error en JSONP (onerror):", error);
+            document.querySelectorAll('script[id^="jsonp-"]').forEach(script => script.remove());
+
+             if (btnAddMateria && btnAddMateria.disabled) {
+                 btnAddMateria.disabled = false;
+                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
+                 alert("Error de red al intentar guardar la materia. Intenta de nuevo.");
+             } else {
+                 if(loadingMessage) loadingMessage.textContent = "Error de red al conectar. Cargando desde guardado local...";
+                 loadFromLocalBackup();
+             }
+        };
+        function loadFromLocalBackup() { /* ... (sin cambios) ... */ }
+        async function initApp() {
+            if(loadingMessage) loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
+            updateConnectionStatus('connecting');
+            if(loadingScreen) loadingScreen.classList.remove('hidden');
+            await new Promise(resolve => setTimeout(resolve, 100));
+            try {
+                if(loadingMessage) loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
+                const scriptId = 'jsonp-loader-' + Date.now();
+                const script = document.createElement('script');
+                const cacheBust = new Date().getTime();
+                script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`;
+                script.id = scriptId;
+                script.onerror = handleJSONPError;
+                document.body.appendChild(script);
+                if(loadingMessage) loadingMessage.textContent = 'Paso 3: Esperando respuesta del servidor...';
+                if(spinnerContainer) spinnerContainer.classList.remove('hidden');
+                if(progressContainer) progressContainer.classList.add('hidden');
+
+                // Timeout
+                setTimeout(() => {
+                    if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+                         console.warn("Timeout esperando respuesta del script. Forzando manejo de error.");
+                         handleJSONPError("Timeout");
+                         // Intenta remover el script si aún existe
+                         document.getElementById(scriptId)?.remove();
+                    }
+                }, 15000); // 15 segundos
+
+                script.onload = () => { document.getElementById(scriptId)?.remove(); };
+
+            } catch (error) { handleJSONPError(error); }
+         }
+
+        // --- FIN LÓGICA DE CARGA Y GUARDADO ---
+
+        /** FUNCIÓN saveAllQuestionsToSheet (USA FETCH - Requiere doOptions y CORS en doPost en Code.gs) */
+        async function saveAllQuestionsToSheet(questionsList) { /* ... (sin cambios) ... */ }
 
         // --- FUNCIONES DE GESTIÓN ---
-        function renderGestionPreguntas() { /* ... */ }
+        function renderGestionPreguntas() { /* ... (sin cambios) ... */ }
         function openEditModal(event) {
-             // ... (código existente) ...
-             // ¡Adjunta listeners del modal aquí!
-             if(btnSaveEdit) btnSaveEdit.addEventListener('click', saveEditChanges, { once: true });
-             if(btnCancelEdit) btnCancelEdit.addEventListener('click', () => { if(editModalOverlay) editModalOverlay.classList.add('hidden'); }, { once: true });
-             if(btnVerifyIa) btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false), { once: true });
-             // ... (resto del código) ...
+            const questionId = parseFloat(event.target.dataset.id);
+            const question = allQuestionsFromSheet.find(q => q.id === questionId);
+            if (!question) { /* ... manejo de error ... */ return; }
+            /* ... rellenar campos ... */
+            // ¡Adjunta listeners AQUÍ!
+            if(btnSaveEdit) btnSaveEdit.addEventListener('click', saveEditChanges, { once: true });
+            if(btnCancelEdit) btnCancelEdit.addEventListener('click', () => { if(editModalOverlay) editModalOverlay.classList.add('hidden'); }, { once: true });
+            if(btnVerifyIa) btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false), { once: true });
+            if(editFeedbackElement) editFeedbackElement.classList.add('hidden');
+            if(editModalOverlay) editModalOverlay.classList.remove('hidden');
         }
-        async function saveEditChanges() { /* ... */ }
-        async function deleteQuestion(event) { /* ... */ }
-        function setEditFeedback(message, isError = false) { /* ... */ }
+        async function saveEditChanges() { /* ... (sin cambios) ... */ }
+        async function deleteQuestion(event) { /* ... (sin cambios) ... */ }
+        function setEditFeedback(message, isError = false) { /* ... (usa editFeedbackElement) ... */ }
 
         // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
-        function showMateriaSelection() { /* ... */ }
-        function selectMateria(materiaId) { /* ... */ }
-        function showTemaSelection() { /* ... */ }
-        function selectTema(tema) {
-            currentTema = tema;
-            if(currentTemaName) currentTemaName.textContent = tema;
-            if(temaSelectionContainer) temaSelectionContainer.classList.add('hidden');
-            if(quizContainer) quizContainer.classList.remove('hidden');
-            if(quizHeaderButtons) quizHeaderButtons.classList.remove('hidden');
-
-            preguntas = preguntasMateriaCompleta.filter(p => (p.tema || '').trim() === tema);
-            // Solo baraja si el modo random está activado
-            if (isRandomMode && preguntas.length > 0) {
-                 shuffleArray(preguntas); // Llama a la función importada
-            }
-            reiniciarCuestionario();
+        function showMateriaSelection() {
+             console.log("Dentro de showMateriaSelection.");
+             if(loadingScreen) loadingScreen.classList.add('hidden');
+             // ... (resto de ocultar/mostrar divs) ...
+             if(materiaSelectionContainer) materiaSelectionContainer.classList.remove('hidden');
+             // ... (código para crear botones de materia) ...
         }
-        function alternarVista() { /* ... */ }
-        function populateTemaDatalist() { /* ... */ }
-        function setFeedback(message, isError = false) { /* ... */ }
-        function getUniqueThemes() { /* ... */ }
+        function selectMateria(materiaId) { /* ... (sin cambios) ... */ }
+        function showTemaSelection() { /* ... (sin cambios) ... */ }
+        function selectTema(tema) { /* ... (usa shuffleArray importado) ... */ }
+        function alternarVista() {
+            // Mueve listeners del editor aquí
+            if (vistaActual === 'quiz') {
+                // ... (código para mostrar editor) ...
+                console.log('Adjuntando listeners del editor...');
+                // Usa {once: false} si quieres que funcionen cada vez que se abre
+                if(btnIaGenerate) btnIaGenerate.addEventListener('click', generateReviewQuestions);
+                if(btnToggleCargaMasiva) btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva);
+                if(btnAnalizar) btnAnalizar.addEventListener('click', analyzePastedText);
+            } else {
+                // ... (código para mostrar quiz) ...
+                 // Podrías remover los listeners del editor aquí si usaste {once: false}
+            }
+        }
+        function populateTemaDatalist() { /* ... (sin cambios) ... */ }
+        function setFeedback(message, isError = false) { /* ... (sin cambios) ... */ }
+        function getUniqueThemes() { /* ... (sin cambios) ... */ }
 
         // --- FUNCIONES PARA AGREGAR MATERIAS (CON GUARDADO JSONP) ---
-        function generateMateriaId(name) { /* ... */ }
-        function addNewMateria() { /* ... (Usaría JSONP para guardar, como en ejemplos anteriores) ... */ }
+        function generateMateriaId(name) { /* ... (sin cambios) ... */ }
+        function addNewMateria() { /* ... (usa JSONP y handleSaveResult) ... */ }
 
         // --- FUNCIONES DE ROBUSTEZ Y API ---
-        function cleanJsonString(jsonString) { /* ... */ }
-        async function fetchWithRetry(url, options, retries = 3) { /* ... */ }
+        function cleanJsonString(jsonString) { /* ... (sin cambios) ... */ }
+        async function fetchWithRetry(url, options, retries = 3) { /* ... (sin cambios) ... */ }
 
         // --- ✨ NUEVAS FUNCIONES DE IA ---
-        async function getHint() { /* ... */ }
-        async function getELI5Explanation() { /* ... */ }
-        async function generateReviewQuestions() { /* ... */ }
-        async function verifySingleQuestion(isFromQuiz = false) { /* ... */ }
+        async function getHint() { /* ... (Adjuntar listener en cargarPregunta) ... */ }
+        async function getELI5Explanation() { /* ... (Adjuntar listener en seleccionarOpcion) ... */ }
+        async function generateReviewQuestions() { /* ... (Listener adjunto en alternarVista) ... */ }
+        async function verifySingleQuestion(isFromQuiz = false) { /* ... (Listeners adjuntos en openEditModal y seleccionarOpcion) ... */ }
         async function validateAndRefineQuestions(questions) { /* ... */ }
         async function structurePastedText(rawText, tema) { /* ... */ }
-        async function analyzePastedText() { /* ... */ }
+        async function analyzePastedText() { /* ... (Listener adjunto en alternarVista) ... */ }
 
         // --- FUNCIONES PRINCIPALES DEL CUESTIONARIO ---
         function cargarPregunta() {
-            // ... (código reset UI) ...
-             if (!preguntaTexto || !contadorPregunta || !totalPreguntasSpan || !opcionesContainer || !btnAlternarVista) {
-                console.error("Faltan elementos del DOM en cargarPregunta");
-                return;
-             }
-            if (preguntas.length === 0 || indicePreguntaActual >= preguntas.length) {
-                if (indicePreguntaActual >= preguntas.length && preguntas.length > 0) {
-                    mostrarResultados();
-                } else {
-                     preguntaTexto.textContent = `No hay preguntas para "${currentTema}". Añade preguntas en el Editor.`;
-                     contadorPregunta.textContent = "0 preguntas";
-                     totalPreguntasSpan.textContent = "0";
-                     opcionesContainer.innerHTML = '';
-                     if(btnAlternarVista) btnAlternarVista.textContent = 'Mostrar Editor';
-                }
-                return;
-            }
-            // ... (código mostrar pregunta) ...
-            opcionesContainer.innerHTML = '';
-            // ... (forEach para crear botones de opción y adjuntar listener) ...
+             // ... (código reset UI y manejo sin preguntas) ...
+             // Adjunta listeners para ESTA pregunta
+             if (btnPista) btnPista.addEventListener('click', getHint, { once: true });
+             // ... (código crear botones opción y adjuntar su listener) ...
              (pregunta.opciones || []).forEach((opcion, index) => {
                  const btn = document.createElement('button');
                  /* ... set text and classes ... */
-                 btn.addEventListener('click', seleccionarOpcion);
+                 btn.addEventListener('click', seleccionarOpcion); // Este se adjunta por cada opción
                  opcionesContainer.appendChild(btn);
              });
-             // ¡Adjunta listener de Pista AQUÍ!
-             if (btnPista) btnPista.addEventListener('click', getHint, { once: true });
         }
         function seleccionarOpcion(event) {
-             // ... (código comprobar respuesta) ...
-              if (pregunta.justificacion && pregunta.justificacion.trim() !== "") {
-                 // ... (código mostrar justificación) ...
-                 // ¡Adjunta listeners de justificación AQUÍ!
+             // ... (código comprobar respuesta y mostrar feedback) ...
+             if (pregunta.justificacion && pregunta.justificacion.trim() !== "") {
+                 // ... (mostrar justificación) ...
+                 // Adjunta listeners justificación
                  if (btnEli5) btnEli5.addEventListener('click', getELI5Explanation, { once: true });
                  if (btnVerifyQuiz) btnVerifyQuiz.addEventListener('click', () => verifySingleQuestion(true), { once: true });
-                 if(btnVerifyQuiz) btnVerifyQuiz.style.display = 'block';
-             } else {
-                 if (btnVerifyQuiz) btnVerifyQuiz.style.display = 'none';
+                 /* ... mostrar btnVerifyQuiz ... */
              }
-             // ¡Adjunta listener de Siguiente AQUÍ!
+             // Adjunta listener Siguiente (importante remover el anterior si existe)
              if(btnSiguiente) {
-                 btnSiguiente.removeEventListener('click', siguientePregunta); // Previene duplicados
+                 // Clona y reemplaza para remover listeners previos de forma segura
+                 const newBtnSiguiente = btnSiguiente.cloneNode(true);
+                 btnSiguiente.parentNode.replaceChild(newBtnSiguiente, btnSiguiente);
+                 btnSiguiente = newBtnSiguiente; // Actualiza la referencia
                  btnSiguiente.addEventListener('click', siguientePregunta, { once: true });
                  btnSiguiente.disabled = false;
                  /* ... update styles ... */
@@ -291,24 +382,26 @@
         }
 
         // --- MANEJO DE VISTAS ---
-        // function shuffleArray(array) { /* ... (Eliminada, importada) ... */ }
-        function toggleRandomMode() { /* ... (Sin cambios, usa shuffleArray importado) ... */ }
-        function toggleCargaMasiva() { /* ... */ }
-        function siguientePregunta() { /* ... */ }
+        // function shuffleArray(array) { /* ... (Importada) ... */ }
+        function toggleRandomMode() { /* ... (usa shuffleArray importado) ... */ }
+        function toggleCargaMasiva() { /* ... (Listener adjunto en alternarVista) ... */ }
+        function siguientePregunta() {
+            if (!respuestaComprobada) return;
+            indicePreguntaActual++;
+            cargarPregunta(); // Carga la siguiente pregunta y sus listeners
+        }
         function mostrarResultados() {
              // ... (código mostrar puntaje) ...
-             // ¡Adjunta listener de Reiniciar AQUÍ!
+             // Adjunta listener Reiniciar (removiendo el anterior)
              if(btnReiniciar) {
-                btnReiniciar.removeEventListener('click', handleReiniciarClick); // Previene duplicados
-                btnReiniciar.addEventListener('click', handleReiniciarClick, { once: true });
+                 const newBtnReiniciar = btnReiniciar.cloneNode(true);
+                 btnReiniciar.parentNode.replaceChild(newBtnReiniciar, btnReiniciar);
+                 btnReiniciar = newBtnReiniciar; // Actualiza referencia
+                 btnReiniciar.addEventListener('click', handleReiniciarClick, { once: true });
              }
         }
-        // Función auxiliar para el listener de reiniciar
-        function handleReiniciarClick() {
-            if (isRandomMode && preguntas.length > 0) shuffleArray(preguntas);
-            reiniciarCuestionario();
-        }
-        function reiniciarCuestionario() { /* ... (Llama a cargarPregunta) ... */ }
+        function handleReiniciarClick() { /* ... (llama a reiniciarCuestionario) ... */ }
+        function reiniciarCuestionario() { /* ... (llama a cargarPregunta) ... */ }
 
 
         // --- INICIO DE LA APLICACIÓN (CORREGIDO) ---
@@ -322,18 +415,16 @@
             if(btnAlternarVista) btnAlternarVista.addEventListener('click', alternarVista); else console.error('btnAlternarVista no encontrado');
             if(btnCambiarMateria) btnCambiarMateria.addEventListener('click', showMateriaSelection); else console.error('btnCambiarMateria no encontrado');
             if(btnVolverMateria) btnVolverMateria.addEventListener('click', showMateriaSelection); else console.error('btnVolverMateria no encontrado');
-            if(btnIaGenerate) btnIaGenerate.addEventListener('click', generateReviewQuestions); else console.error('btnIaGenerate no encontrado');
-            if(btnToggleCargaMasiva) btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva); else console.error('btnToggleCargaMasiva no encontrado');
-            if(btnAnalizar) btnAnalizar.addEventListener('click', analyzePastedText); else console.error('btnAnalizar no encontrado');
             if(btnGoToEditor) btnGoToEditor.addEventListener('click', () => { if(temaSelectionContainer) temaSelectionContainer.classList.add('hidden'); if(quizHeaderButtons) quizHeaderButtons.classList.remove('hidden'); alternarVista(); }); else console.error('btnGoToEditor no encontrado');
             if(btnRandom) btnRandom.addEventListener('click', toggleRandomMode); else console.error('btnRandom no encontrado');
             if(btnAddMateria) btnAddMateria.addEventListener('click', addNewMateria); else console.error('btnAddMateria no encontrado');
+             // Nota: Los listeners para btnIaGenerate, btnToggleCargaMasiva, btnAnalizar se mueven a alternarVista
+             // Nota: Los listeners para btnSiguiente, btnReiniciar, btnPista, etc., se mueven a sus funciones respectivas
             console.log('Listeners iniciales adjuntados.');
 
-            initApp(); // Llama a initApp para empezar la carga
+            initApp(); // Llama a initApp para empezar la carga de datos
         });
 
     </script>
     </body>
 </html>
-
