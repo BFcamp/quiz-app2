@@ -1336,12 +1336,10 @@
         }
         
         // --- MANEJO DE VISTAS DEL EDITOR ---
-        function shuffleArray(array) {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[i], array[j]];
-            }
-        }
+       <script type="module">
+    // Importa la función desde el nuevo archivo
+    import { shuffleArray } from './randomizer.js';
+        
 
         function toggleCargaMasiva() {
             cargaMasivaContainer.classList.toggle('hidden');
