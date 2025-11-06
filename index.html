@@ -198,6 +198,118 @@
     const LS_MATERIAS = 'materias_config';
     const LS_QUESTIONS = 'questions_data_v1';
 
+    // --- Normalizador para items que vengan del parseo de Gemini ---
+function normalizeGeminiItem(item, fallbackMateria = null) {
+  // Acepta variantes de nombres comunes que suele devolver LLMs
+  const materia =
+    (item.materia?.toString().trim().toLowerCase()) ||
+    (fallbackMateria ? String(fallbackMateria).trim().toLowerCase() : '');
+
+  const tema = (item.tema || item.topic || '').toString().trim();
+  const pregunta = (item.pregunta || item.question || '').toString().trim();
+
+  // Opciones: acepta A/B/C/D, array, o un objeto con keys tipo 'a','b','c','d'
+  let A = item.A ?? item.a;
+  let B = item.B ?? item.b;
+  let C = item.C ?? item.c;
+  let D = item.D ?? item.d;
+  if (!A && Array.isArray(item.opciones || item.options)) {
+    const arr = (item.opciones || item.options).map(String);
+    [A,B,C,D] = [arr[0] || '', arr[1] || '', arr[2] || '', arr[3] || ''];
+  }
+  A = (A || '').toString().trim();
+  B = (B || '').toString().trim();
+  C = (C || '').toString().trim();
+  D = (D || '').toString().trim();
+
+  // Correcta: acepta 'A'/'B'/'C'/'D' ó el texto completo de la opción
+  let correcta = (item.correcta || item.correct || '')
+    .toString()
+    .trim();
+
+  // Si vino el texto de la opción, mapear a letra
+  const mapTextoALetra = (txt) => {
+    if (!txt) return '';
+    const t = txt.toString().trim().toLowerCase();
+    if (t && t === A.toLowerCase()) return 'A';
+    if (t && t === B.toLowerCase()) return 'B';
+    if (t && t === C.toLowerCase()) return 'C';
+    if (t && t === D.toLowerCase()) return 'D';
+    return '';
+  };
+
+  // Normalizar correcta
+  let correctaNorm = correcta.toUpperCase();
+  if (!['A','B','C','D'].includes(correctaNorm)) {
+    correctaNorm = mapTextoALetra(correcta) || '';
+  }
+
+  const explicacion = (item.explicacion || item.explanation || '').toString().trim();
+
+  return {
+    materia,
+    tema,
+    pregunta,
+    opciones: { A, B, C, D },
+    correcta: correctaNorm,
+    explicacion
+  };
+}
+
+// --- Validador mínimo para no cortar el flujo del bulk ---
+function isValidQuestion(q) {
+  if (!q?.pregunta || !q?.opciones?.A || !q?.opciones?.B) return false;
+  if (!['A','B','C','D'].includes(q.correcta)) return false;
+  return true;
+}
+
+// --- BULK: ingesta desde Gemini (o desde cualquier parser) ---
+// `items` es el array que te devuelve Gemini ya estructurado.
+// `fallbackMateria` se usa si el item no trae 'materia'.
+async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
+  if (!Array.isArray(items) || items.length === 0) return { added: 0, rejected: 0 };
+
+  // 1) Normalizar
+  const normalized = items.map(it => normalizeGeminiItem(it, fallbackMateria));
+
+  // 2) Filtrar válidas / inválidas
+  const valid = [];
+  const rejected = [];
+  for (const q of normalized) (isValidQuestion(q) ? valid : rejected).push(q);
+
+  if (valid.length === 0) return { added: 0, rejected: rejected.length };
+
+  // 3) Asegurar materias nuevas (por si llegaron ids que no existen aún)
+  const tempQuestions = valid.map(v => ({ materia: v.materia }));
+  ensureMateriasFromData(tempQuestions);
+
+  // 4) Armar objetos finales con id
+  const withIds = valid.map(v => ({
+    id: crypto.randomUUID(),
+    materia: v.materia,
+    tema: v.tema,
+    pregunta: v.pregunta,
+    opciones: v.opciones,
+    correcta: v.correcta,
+    explicacion: v.explicacion
+  }));
+
+  // 5) MERGE local y guardar UNA sola vez (esto dispara el mirror a Sheets por cada nueva)
+  const merged = [...QUESTIONS, ...withIds];
+  saveQuestions(merged); // <— mantiene el comportamiento actual y dispara mirror a Sheets de las NUEVAS
+  QUESTIONS = merged;
+
+  // 6) Si estás en la misma materia, refrescar UI (opcional)
+  if (typeof currentMateria === 'string') {
+    // Si el bulk apuntaba a una materia concreta, podés dejar al usuario ahí:
+    // currentMateria = withIds[0].materia || currentMateria;
+    // startQuiz();
+  }
+
+  return { added: withIds.length, rejected: rejected.length };
+}
+
+
     // === OPCIONAL: Mirror a Google Sheets sin tocar el editor ===
     // Pegá aquí tu URL de Web App (Apps Script -> despliegue tipo Web App que termina en /exec)
     // Dejalo vacío si NO querés usar Sheets.
@@ -644,3 +756,4 @@
   </script>
 </body>
 </html>
+
