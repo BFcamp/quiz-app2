@@ -255,7 +255,7 @@ Correcta: C"></textarea>
 
     // OPCIONAL: pegá tu URL de Web App (Apps Script -> /exec) para espejar altas a Sheets.
     // Si lo dejas vacío, la app funciona 100% local.
-    const SHEETS_URL = '';
+    const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxdNS0BZ7fJ2e-H5MDZOP4arlMQvToIksVs0Tmy3fh7RLJqP8v7tYnPUdsVReY34VP9/exec';
     function sheetsEnabled(){ return typeof SHEETS_URL === 'string' && SHEETS_URL.startsWith('http'); }
     async function sheetsAddQuestion(q){
       if (!sheetsEnabled()) return;
@@ -805,3 +805,4 @@ Correcta: C"></textarea>
   </script>
 </body>
 </html>
+
