@@ -1,431 +1,699 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Estilo personalizado para las opciones de respuesta */
-        .opcion-btn { transition: all 0.2s; }
-        .opcion-btn:not(.correcto):not(.incorrecto):hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); }
-        .seleccionada { border: 3px solid #6366f1; }
-        .correcta { background-color: #10b981 !important; color: white !important; border-color: #059669 !important; }
-        .incorrecto { background-color: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
-        .hidden-transition { opacity: 0; max-height: 0; overflow: hidden; transition: opacity 0.3s ease-out, max-height 0.3s ease-out; }
-        .visible-transition { opacity: 1; max-height: 500px; }
-        .spinner { border: 4px solid rgba(0, 0, 0, 0.2); border-top: 4px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background-color: white; padding: 24px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-        .progress-bar-container { width: 100%; background-color: #e0e7ff; border-radius: 9999px; overflow: hidden; }
-        .progress-bar { height: 10px; width: 0%; background-color: #4f46e5; border-radius: 9999px; transition: width 1s ease-in-out; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App Quiz | Materias dinámicas + Google Sheets</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 40; }
+    .modal-content { background: #fff; width: 100%; max-width: 560px; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,.25); }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4" style="font-family: 'Inter', sans-serif;">
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <header class="p-4 border-b bg-white sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      <h1 class="text-2xl font-bold">App Quiz</h1>
+      <nav class="flex items-center gap-2 text-sm">
+        <button id="nav-home" class="px-3 py-2 rounded-lg hover:bg-slate-100">Materias</button>
+        <button id="nav-editor" class="px-3 py-2 rounded-lg hover:bg-slate-100">Editor</button>
+      </nav>
+    </div>
+  </header>
 
-    <div id="app" class="w-full max-w-2xl bg-white shadow-2xl rounded-xl p-6 md:p-10">
-
-        <header class="text-center mb-6 relative">
-            <h1 id="app-title" class="text-3xl font-extrabold text-indigo-700">Quiz App</h1>
-            <div id="connection-status" class="absolute top-0 right-0 text-xs font-bold p-2 rounded-full"></div>
-        </header>
-
-        <div id="loading-screen" class="text-center p-10 bg-indigo-50 rounded-xl">
-            <div id="spinner-container" class="mb-4"><div class="spinner mx-auto"></div></div>
-            <p id="loading-message" class="text-lg font-medium text-indigo-700 mb-4">Iniciando...</p>
-            <div id="progress-container" class="w-full max-w-xs mx-auto hidden"><div class="progress-bar-container"><div id="progress-bar" class="progress-bar"></div></div></div>
-        </div>
-
-        <div id="materia-selection-container" class="hidden text-center p-10">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Selecciona una Materia</h2>
-            <div class="max-w-sm mx-auto">
-                <div id="materia-buttons" class="space-y-4"></div>
-                <button id="btn-add-materia" class="mt-6 w-full py-3 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">+ Agregar Nueva Materia</button>
-            </div>
-        </div>
-
-        <div id="tema-selection-container" class="hidden text-center p-10">
-            <button id="btn-volver-materia" class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm mb-6">← Volver a Materias</button>
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Selecciona un Tema para <span id="current-materia-name"></span></h2>
-            <div id="tema-buttons" class="space-y-4 max-w-sm mx-auto"></div>
-            <p id="no-temas-message" class="text-gray-500 mt-6 hidden">No hay temas guardados.</p>
-             <button id="btn-go-to-editor" class="mt-8 py-3 px-6 bg-gray-700 text-white font-bold rounded-lg shadow-md hover:bg-gray-800 transition w-full">Ir al Editor para Agregar Preguntas</button>
-        </div>
-
-        <div class="mb-6 flex justify-between hidden" id="quiz-header-buttons">
-             <button id="btn-cambiar-materia" class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">Cambiar Materia</button>
-             <button id="btn-random" class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">Random 🔀</button>
-             <button id="btn-alternar-vista" class="py-2 px-4 text-sm bg-gray-200 text-gray-700 font-medium rounded-full hover:bg-gray-300 transition duration-150 ease-in-out shadow-sm">Mostrar Editor</button>
-        </div>
-
-        <div id="editor-container" class="hidden"> ... (HTML interno sin cambios) ... </div>
-        <div id="quiz-container" class="hidden"> ... (HTML interno sin cambios) ... </div>
-        <div id="resultados-container" class="text-center p-10 hidden"> ... (HTML interno sin cambios) ... </div>
-        <div id="edit-modal-overlay" class="modal-overlay hidden"> ... (HTML interno sin cambios) ... </div>
-
+  <main class="max-w-5xl mx-auto p-4">
+    <!-- AVISO DE MODO DE ALMACENAMIENTO -->
+    <div id="storage-banner" class="mb-4 p-3 rounded-xl border bg-amber-50 text-amber-900 flex items-center justify-between">
+      <div>
+        <b>Modo de guardado:</b> <span id="storage-mode"></span>
+        <span id="sheets-url-preview" class="ml-2 text-xs text-slate-600"></span>
+      </div>
+      <button id="btn-toggle-storage" class="text-xs px-2 py-1 rounded border">Cambiar</button>
     </div>
 
-    <script type="module">
-        // Importa la función desde el archivo randomizer.js (asegúrate que exista)
-        import { shuffleArray } from './randomizer.js';
+    <!-- Selección de Materia -->
+    <section id="materia-selection-container" class="space-y-6">
+      <div>
+        <h2 class="text-3xl font-extrabold tracking-tight">Elegí una materia</h2>
+        <p class="text-slate-600">Podés crear materias nuevas y luego cargar preguntas en el editor.</p>
+      </div>
+      <div id="materia-buttons" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+      <button id="btn-add-materia" class="mt-4 w-full sm:w-auto py-3 px-6 bg-gray-800 text-white font-bold rounded-lg shadow-md hover:bg-black transition">+ Agregar Materia</button>
+    </section>
 
-        // --- CONFIGURACIÓN DE LA APP ---
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjqW9XyfSHOKWAvZ2Nsm6apsNsM6_5n-6uRik4PHLzcjiqEMJIXQ0cvC5n3RN_B4Cd/exec"";
+    <!-- Vista de Quiz -->
+    <section id="quiz-container" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 id="quiz-title" class="text-2xl font-bold"></h2>
+          <p id="quiz-progress" class="text-sm text-slate-500"></p>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-back-to-materias" class="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Volver</button>
+          <button id="btn-open-editor" class="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Editor</button>
+        </div>
+      </div>
 
-        // --- VARIABLES DE ESTADO ---
-        let MATERIAS = {}; let allQuestionsFromSheet = []; let preguntasMateriaCompleta = [];
-        let preguntas = []; let currentMateria = null; let currentTema = null;
-        let indicePreguntaActual = 0; let puntaje = 0; let seleccionActual = null;
-        let respuestaComprobada = false; let vistaActual = 'quiz'; let isRandomMode = false;
+      <div id="quiz-card" class="bg-white rounded-2xl shadow p-5">
+        <div id="quiz-meta" class="text-xs uppercase tracking-wide text-slate-500 mb-2"></div>
+        <h3 id="quiz-question" class="text-xl font-semibold mb-4"></h3>
+        <div id="quiz-options" class="grid gap-3"></div>
+        <div id="quiz-feedback" class="mt-4 hidden p-3 rounded-lg text-sm"></div>
+        <div class="mt-6 flex justify-end">
+          <button id="btn-next" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40" disabled>Siguiente</button>
+        </div>
+      </div>
 
-        const MATERIA_COLORS = [
-             { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' }, { color: 'bg-teal-600', hover: 'hover:bg-teal-700' },
-             { color: 'bg-rose-600', hover: 'hover:bg-rose-700' }, { color: 'bg-amber-600', hover: 'hover:bg-amber-700' },
-             { color: 'bg-sky-600', hover: 'hover:bg-sky-700' }, { color: 'bg-emerald-600', hover: 'hover:bg-emerald-700' }
-        ];
+      <div id="quiz-summary" class="hidden bg-white rounded-2xl shadow p-5">
+        <h3 class="text-2xl font-bold mb-2">Resultado</h3>
+        <p id="summary-line" class="text-slate-600 mb-4"></p>
+        <div class="flex gap-2">
+          <button id="btn-restart" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Reintentar</button>
+          <button id="btn-back" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Volver a materias</button>
+        </div>
+      </div>
+    </section>
 
-        // --- REFERENCIAS DEL DOM (Declaradas, se asignan en DOMContentLoaded) ---
-        let appTitle, loadingScreen, loadingMessage, materiaSelectionContainer, materiaButtons, temaSelectionContainer,
-            temaButtons, currentMateriaName, noTemasMessage, quizContainer, resultadosContainer, preguntaTexto,
-            opcionesContainer, contadorPregunta, puntajeSpan, totalPreguntasSpan, feedbackContainer, feedbackTexto,
-            justificacionBox, justificacionTexto, btnSiguiente, btnReiniciar, resultadoFinal, editorContainer,
-            btnAlternarVista, btnCambiarMateria, btnVolverMateria, quizHeaderButtons, editorMateriaNombre,
-            editorFeedback, currentTemaName, totalPreguntasEditor, gestionPreguntasContainer, connectionStatus,
-            btnGoToEditor, progressContainer, progressBar, spinnerContainer, btnRandom, btnAddMateria,
-            editModalOverlay, editPregunta, editTema, editOpcionesContainer, editCorrectaIndex,
-            editJustificacion, editQuestionId, btnSaveEdit, btnCancelEdit, btnVerifyIa,
-            btnPista, pistaContainer, btnEli5, eli5Container, btnIaGenerate, iaGenerateTopicInput,
-            iaGenerateSpinner, iaGenerateText, btnVerifyQuiz, verifyQuizFeedback, btnToggleCargaMasiva,
-            cargaMasivaContainer, temaInput, textoPdf, btnAnalizar, analizarText, analizarSpinner,
-            temasExistentesDatalist, editFeedbackElement;
+    <!-- Editor -->
+    <section id="editor-container" class="hidden space-y-6">
+      <div class="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h2 class="text-3xl font-extrabold tracking-tight">Editor de preguntas</h2>
+          <p class="text-slate-600">Elegí materia y cargá preguntas tipo choice.</p>
+        </div>
+        <div class="flex gap-2 items-center">
+          <select id="editor-materia" class="p-2 border rounded-lg"></select>
+          <button id="btn-manage-materia" class="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Administrar materia</button>
+        </div>
+      </div>
 
-        /** Asigna todas las referencias del DOM */
-        function assignDomReferences() {
-            try {
-                appTitle = document.getElementById('app-title');
-                loadingScreen = document.getElementById('loading-screen');
-                loadingMessage = document.getElementById('loading-message');
-                materiaSelectionContainer = document.getElementById('materia-selection-container');
-                materiaButtons = document.getElementById('materia-buttons');
-                temaSelectionContainer = document.getElementById('tema-selection-container');
-                temaButtons = document.getElementById('tema-buttons');
-                currentMateriaName = document.getElementById('current-materia-name');
-                noTemasMessage = document.getElementById('no-temas-message');
-                quizContainer = document.getElementById('quiz-container');
-                resultadosContainer = document.getElementById('resultados-container');
-                preguntaTexto = document.getElementById('pregunta-texto');
-                opcionesContainer = document.getElementById('opciones-container');
-                contadorPregunta = document.getElementById('contador-pregunta');
-                puntajeSpan = document.getElementById('puntaje');
-                totalPreguntasSpan = document.getElementById('total-preguntas');
-                feedbackContainer = document.getElementById('feedback-container');
-                feedbackTexto = document.getElementById('feedback-texto');
-                justificacionBox = document.getElementById('justificacion-box');
-                justificacionTexto = document.getElementById('justificacion-texto');
-                btnSiguiente = document.getElementById('btn-siguiente');
-                btnReiniciar = document.getElementById('btn-reiniciar');
-                resultadoFinal = document.getElementById('resultado-final');
-                editorContainer = document.getElementById('editor-container');
-                btnAlternarVista = document.getElementById('btn-alternar-vista');
-                btnCambiarMateria = document.getElementById('btn-cambiar-materia');
-                btnVolverMateria = document.getElementById('btn-volver-materia');
-                quizHeaderButtons = document.getElementById('quiz-header-buttons');
-                editorMateriaNombre = document.getElementById('editor-materia-nombre');
-                editorFeedback = document.getElementById('editor-feedback');
-                currentTemaName = document.getElementById('current-tema-name');
-                totalPreguntasEditor = document.getElementById('total-preguntas-editor');
-                gestionPreguntasContainer = document.getElementById('gestion-preguntas-container');
-                connectionStatus = document.getElementById('connection-status');
-                btnGoToEditor = document.getElementById('btn-go-to-editor');
-                progressContainer = document.getElementById('progress-container');
-                progressBar = document.getElementById('progress-bar');
-                spinnerContainer = document.getElementById('spinner-container');
-                btnRandom = document.getElementById('btn-random');
-                btnAddMateria = document.getElementById('btn-add-materia');
-                editModalOverlay = document.getElementById('edit-modal-overlay');
-                editPregunta = document.getElementById('edit-pregunta');
-                editTema = document.getElementById('edit-tema');
-                editOpcionesContainer = document.getElementById('edit-opciones-container');
-                editCorrectaIndex = document.getElementById('edit-correcta-index');
-                editJustificacion = document.getElementById('edit-justificacion');
-                editQuestionId = document.getElementById('edit-question-id');
-                btnSaveEdit = document.getElementById('btn-save-edit');
-                btnCancelEdit = document.getElementById('btn-cancel-edit');
-                btnVerifyIa = document.getElementById('btn-verify-ia');
-                editFeedbackElement = document.getElementById('edit-feedback'); // Asigna al mismo ID que editorFeedback
-                btnPista = document.getElementById('btn-pista');
-                pistaContainer = document.getElementById('pista-container');
-                btnEli5 = document.getElementById('btn-eli5');
-                eli5Container = document.getElementById('eli5-container');
-                btnIaGenerate = document.getElementById('btn-ia-generate');
-                iaGenerateTopicInput = document.getElementById('ia-generate-topic-input');
-                iaGenerateSpinner = document.getElementById('ia-generate-spinner');
-                iaGenerateText = document.getElementById('ia-generate-text');
-                btnVerifyQuiz = document.getElementById('btn-verify-quiz');
-                verifyQuizFeedback = document.getElementById('verify-quiz-feedback');
-                btnToggleCargaMasiva = document.getElementById('btn-toggle-carga-masiva');
-                cargaMasivaContainer = document.getElementById('carga-masiva-container');
-                temaInput = document.getElementById('tema-input');
-                textoPdf = document.getElementById('texto-pdf');
-                btnAnalizar = document.getElementById('btn-analizar');
-                analizarText = document.getElementById('analizar-text');
-                analizarSpinner = document.getElementById('analizar-spinner');
-                temasExistentesDatalist = document.getElementById('temas-existentes');
-                console.log("Referencias DOM asignadas.");
-            } catch (error) {
-                console.error("Error asignando referencias DOM:", error);
-                // Muestra un error al usuario si falla la asignación inicial
-                if(loadingMessage) loadingMessage.textContent = "Error al cargar la interfaz. Recarga la página.";
-                if(loadingScreen && !loadingScreen.classList.contains('hidden')) { // Solo si aún está visible
-                     if(spinnerContainer) spinnerContainer.classList.add('hidden');
-                }
-            }
-        }
+      <form id="form-question" class="bg-white rounded-2xl shadow p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium mb-1">Tema</label>
+          <input id="q-topic" type="text" class="w-full p-2 border rounded-lg" placeholder="p.ej., Antídotos" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium mb-1">Pregunta</label>
+          <textarea id="q-text" class="w-full p-2 border rounded-lg" rows="3" placeholder="Escribe la consigna..."></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Opción A</label>
+          <input id="q-a" type="text" class="w-full p-2 border rounded-lg" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Opción B</label>
+          <input id="q-b" type="text" class="w-full p-2 border rounded-lg" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Opción C</label>
+          <input id="q-c" type="text" class="w-full p-2 border rounded-lg" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Opción D</label>
+          <input id="q-d" type="text" class="w-full p-2 border rounded-lg" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Correcta</label>
+          <select id="q-correct" class="w-full p-2 border rounded-lg">
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium mb-1">Explicación (opcional)</label>
+          <textarea id="q-explain" class="w-full p-2 border rounded-lg" rows="2" placeholder="Por qué es correcta..."></textarea>
+        </div>
+        <div class="md:col-span-2 flex justify-end gap-2">
+          <button type="button" id="btn-clear" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Limpiar</button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Guardar pregunta</button>
+        </div>
+      </form>
 
+      <div class="bg-white rounded-2xl shadow p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xl font-semibold">Preguntas de la materia</h3>
+          <div class="text-sm text-slate-500" id="count-questions"></div>
+        </div>
+        <div id="list-questions" class="grid gap-3"></div>
+      </div>
+    </section>
+  </main>
 
-        // --- GOOGLE SHEETS Y PERSISTENCIA ---
-        function updateConnectionStatus(status, message = '') { /* ... (sin cambios) ... */ }
+  <!-- Modal Crear Materia -->
+  <div id="modal-materia" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="text-2xl font-bold text-indigo-600 mb-4">Nueva Materia</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">ID (única, sin espacios)</label>
+          <input id="mat-id" type="text" placeholder="ej: cardiologia-clinica" class="w-full p-2 border rounded-lg">
+          <p class="text-xs text-gray-500 mt-1">Usa letras minúsculas, números y guiones. Ej: <code>nefrologia</code>, <code>med-legal</code>.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nombre visible</label>
+          <input id="mat-name" type="text" placeholder="Cardiología Clínica" class="w-full p-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Color</label>
+          <select id="mat-color" class="w-full p-2 border rounded-lg">
+            <option value="bg-indigo-600|hover:bg-indigo-700">Índigo</option>
+            <option value="bg-teal-600|hover:bg-teal-700">Teal</option>
+            <option value="bg-rose-600|hover:bg-rose-700">Rosa</option>
+            <option value="bg-amber-600|hover:bg-amber-700">Ámbar</option>
+            <option value="bg-emerald-600|hover:bg-emerald-700">Esmeralda</option>
+            <option value="bg-sky-600|hover:bg-sky-700">Cielo</option>
+          </select>
+        </div>
+        <div id="mat-feedback" class="hidden text-sm p-2 rounded"></div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="mat-cancel" class="py-2 px-4 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition">Cancelar</button>
+        <button id="mat-save" class="py-2 px-4 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition">Crear</button>
+      </div>
+    </div>
+  </div>
 
-        // ==========================================
-        // == LÓGICA DE CARGA Y GUARDADO (JSONP) ==
-        // ==========================================
-        window.handleQuizData = (payload) => {
-             console.log("Recibido handleQuizData:", payload); // Log para depurar
-             try {
-                if (!payload || payload.status === 'error') throw new Error(payload?.message || 'Respuesta inválida del servidor');
-                MATERIAS = payload.materias || {};
-                const rawData = payload.preguntas || [];
-                allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
-                localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
+  <!-- Modal Administrar Materia -->
+  <div id="modal-manage" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 class="text-2xl font-bold text-indigo-600 mb-4">Administrar materia</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium">Materia actual</label>
+          <div id="manage-current" class="p-2 border rounded-lg bg-slate-50"></div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Renombrar (visible)</label>
+          <input id="manage-newname" type="text" class="w-full p-2 border rounded-lg" />
+        </div>
+        <div id="manage-feedback" class="hidden text-sm p-2 rounded"></div>
+      </div>
+      <div class="flex justify-between items-center mt-6">
+        <button id="manage-delete" class="py-2 px-4 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700">Eliminar materia</button>
+        <div class="flex gap-2">
+          <button id="manage-cancel" class="py-2 px-4 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300">Cerrar</button>
+          <button id="manage-save" class="py-2 px-4 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-                if (progressBar) progressBar.style.width = '100%';
-                if (loadingMessage) loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas y ${Object.keys(MATERIAS).length} materias!`;
-                console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas. Materias:`, MATERIAS);
-                updateConnectionStatus('online');
+  <script type="module">
+    // =====================
+    // CONFIGURACIÓN DE ALMACENAMIENTO
+    // =====================
+    const LS_SETTINGS = 'quiz_settings_v1';
+    const DEFAULT_SETTINGS = { useSheets: false, sheetsUrl: '' };
+    let SETTINGS = loadSettings();
+    function loadSettings(){
+      try { return JSON.parse(localStorage.getItem(LS_SETTINGS)) || DEFAULT_SETTINGS; } catch { return DEFAULT_SETTINGS; }
+    }
+    function saveSettings(){ localStorage.setItem(LS_SETTINGS, JSON.stringify(SETTINGS)); }
 
-                console.log("Datos procesados. Llamando a showMateriaSelection...");
-                showMateriaSelection(); // Llama directamente
+    // =====================
+    // Persistencia básica (materias)
+    // =====================
+    const LS_MATERIAS = 'materias_config';
+    const LS_QUESTIONS = 'questions_data_v1';
 
-            } catch (error) {
-                console.error("Error al procesar datos de JSONP:", error);
-                if (loadingMessage) loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
-                loadFromLocalBackup();
-            }
+    let MATERIAS = {};
+    function loadMaterias() {
+      const saved = localStorage.getItem(LS_MATERIAS);
+      if (saved) { try { MATERIAS = JSON.parse(saved) || {}; } catch { MATERIAS = {}; } }
+      if (!MATERIAS || Object.keys(MATERIAS).length === 0) {
+        MATERIAS = {
+          'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
+          'oftalmologia': { name: 'Oftalmología', color: 'bg-teal-600', hover: 'hover:bg-teal-700' }
         };
-        window.handleSaveResult = (payload) => {
-            console.log("Recibido handleSaveResult:", payload); // Log para depurar
-             document.querySelectorAll('script[id^="jsonp-saver-"]').forEach(script => script.remove());
+        saveMaterias();
+      }
+    }
+    function saveMaterias() { localStorage.setItem(LS_MATERIAS, JSON.stringify(MATERIAS)); }
 
-            if (btnAddMateria) {
-                 btnAddMateria.disabled = false;
-                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
-            }
-
-            if (payload && payload.status === 'success') {
-                console.log("Materia guardada:", payload.saved_materia);
-                MATERIAS[payload.saved_materia.id] = payload.saved_materia;
-                showMateriaSelection();
-            } else {
-                console.error("Error al guardar materia:", payload?.message || 'Respuesta inválida');
-                alert(`No se pudo guardar la materia en la nube: ${payload?.message || 'Respuesta inválida'}`);
-            }
-        };
-        window.handleJSONPError = (error) => {
-            console.error("Error en JSONP (onerror):", error);
-            document.querySelectorAll('script[id^="jsonp-"]').forEach(script => script.remove());
-
-             if (btnAddMateria && btnAddMateria.disabled) {
-                 btnAddMateria.disabled = false;
-                 btnAddMateria.textContent = "+ Agregar Nueva Materia";
-                 alert("Error de red al intentar guardar la materia. Intenta de nuevo.");
-             } else {
-                 if(loadingMessage) loadingMessage.textContent = "Error de red al conectar. Cargando desde guardado local...";
-                 loadFromLocalBackup();
-             }
-        };
-        function loadFromLocalBackup() { /* ... (sin cambios) ... */ }
-        async function initApp() {
-            if(loadingMessage) loadingMessage.textContent = 'Paso 1: Iniciando aplicación...';
-            updateConnectionStatus('connecting');
-            if(loadingScreen) loadingScreen.classList.remove('hidden');
-            await new Promise(resolve => setTimeout(resolve, 100));
-            try {
-                if(loadingMessage) loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
-                const scriptId = 'jsonp-loader-' + Date.now();
-                const script = document.createElement('script');
-                const cacheBust = new Date().getTime();
-                script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`;
-                script.id = scriptId;
-                script.onerror = handleJSONPError;
-                document.body.appendChild(script);
-                if(loadingMessage) loadingMessage.textContent = 'Paso 3: Esperando respuesta del servidor...';
-                if(spinnerContainer) spinnerContainer.classList.remove('hidden');
-                if(progressContainer) progressContainer.classList.add('hidden');
-
-                // Timeout
-                setTimeout(() => {
-                    if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
-                         console.warn("Timeout esperando respuesta del script. Forzando manejo de error.");
-                         handleJSONPError("Timeout");
-                         // Intenta remover el script si aún existe
-                         document.getElementById(scriptId)?.remove();
-                    }
-                }, 15000); // 15 segundos
-
-                script.onload = () => { document.getElementById(scriptId)?.remove(); };
-
-            } catch (error) { handleJSONPError(error); }
-         }
-
-        // --- FIN LÓGICA DE CARGA Y GUARDADO ---
-
-        /** FUNCIÓN saveAllQuestionsToSheet (USA FETCH - Requiere doOptions y CORS en doPost en Code.gs) */
-        async function saveAllQuestionsToSheet(questionsList) { /* ... (sin cambios) ... */ }
-
-        // --- FUNCIONES DE GESTIÓN ---
-        function renderGestionPreguntas() { /* ... (sin cambios) ... */ }
-        function openEditModal(event) {
-            const questionId = parseFloat(event.target.dataset.id);
-            const question = allQuestionsFromSheet.find(q => q.id === questionId);
-            if (!question) { /* ... manejo de error ... */ return; }
-            /* ... rellenar campos ... */
-            // ¡Adjunta listeners AQUÍ!
-            if(btnSaveEdit) btnSaveEdit.addEventListener('click', saveEditChanges, { once: true });
-            if(btnCancelEdit) btnCancelEdit.addEventListener('click', () => { if(editModalOverlay) editModalOverlay.classList.add('hidden'); }, { once: true });
-            if(btnVerifyIa) btnVerifyIa.addEventListener('click', () => verifySingleQuestion(false), { once: true });
-            if(editFeedbackElement) editFeedbackElement.classList.add('hidden');
-            if(editModalOverlay) editModalOverlay.classList.remove('hidden');
+    const DEFAULT_COLORS = [
+      ['bg-indigo-600','hover:bg-indigo-700'],
+      ['bg-teal-600','hover:bg-teal-700'],
+      ['bg-rose-600','hover:bg-rose-700'],
+      ['bg-amber-600','hover:bg-amber-700'],
+      ['bg-emerald-600','hover:bg-emerald-700'],
+      ['bg-sky-600','hover:bg-sky-700'],
+    ];
+    function ensureMateriasFromData(all) {
+      const existing = new Set(Object.keys(MATERIAS));
+      let colorIdx = 0;
+      [...new Set(all.map(q => q.materia).filter(Boolean))].forEach(key => {
+        if (!existing.has(key)) {
+          const [color, hover] = DEFAULT_COLORS[colorIdx % DEFAULT_COLORS.length];
+          const name = key.replace(/[-_]+/g,' ').replace(/\b\w/g, m => m.toUpperCase());
+          MATERIAS[key] = { name, color, hover };
+          colorIdx++;
         }
-        async function saveEditChanges() { /* ... (sin cambios) ... */ }
-        async function deleteQuestion(event) { /* ... (sin cambios) ... */ }
-        function setEditFeedback(message, isError = false) { /* ... (usa editFeedbackElement) ... */ }
+      });
+      saveMaterias();
+    }
 
-        // --- FUNCIONES DE UTILIDAD PARA VISTAS ---
-        function showMateriaSelection() {
-             console.log("Dentro de showMateriaSelection.");
-             if(loadingScreen) loadingScreen.classList.add('hidden');
-             // ... (resto de ocultar/mostrar divs) ...
-             if(materiaSelectionContainer) materiaSelectionContainer.classList.remove('hidden');
-             // ... (código para crear botones de materia) ...
+    // =====================
+    // Google Sheets API (via Apps Script Web App)
+    // =====================
+    const SHEETS_URL = SETTINGS.sheetsUrl; // pegá aquí tu URL /exec o usá el botón "Cambiar"
+
+    async function loadQuestionsFromSheets(){
+      const url = `${SHEETS_URL}?action=list`;
+      const res = await fetch(url, { method:'GET' });
+      if (!res.ok) throw new Error('No se pudo leer del Web App.');
+      const json = await res.json();
+      const mapped = json.rows.map(r => ({
+        id: r.id,
+        materia: r.materia,
+        tema: r.tema || '',
+        pregunta: r.pregunta,
+        opciones: { A: r.A||'', B: r.B||'', C: r.C||'', D: r.D||'' },
+        correcta: r.correcta,
+        explicacion: r.explicacion || ''
+      }));
+      return mapped;
+    }
+
+    async function saveQuestionToSheets(q){
+      const body = new URLSearchParams({
+        action: 'add',
+        id: q.id,
+        materia: q.materia,
+        tema: q.tema || '',
+        pregunta: q.pregunta,
+        A: q.opciones.A || '',
+        B: q.opciones.B || '',
+        C: q.opciones.C || '',
+        D: q.opciones.D || '',
+        correcta: q.correcta,
+        explicacion: q.explicacion || ''
+      });
+      const res = await fetch(SHEETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body
+      });
+      if (!res.ok) throw new Error('No se pudo guardar en el Web App.');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error desconocido del Web App');
+      return true;
+    }
+
+    // =====================
+    // Capa de datos (local o sheets)
+    // =====================
+    function loadQuestionsLocal() {
+      const saved = localStorage.getItem(LS_QUESTIONS);
+      if (saved) { try { return JSON.parse(saved) || []; } catch { return []; } }
+      const seed = [
+        { id: crypto.randomUUID(), materia: 'toxicologia', tema: 'Antídotos', pregunta: '¿Cuál es el antídoto de elección para intoxicación por paracetamol?', opciones: {A:'N-acetilcisteína', B:'Atropina', C:'Naloxona', D:'Fomepizol'}, correcta: 'A', explicacion: 'Repone glutatión y detoxifica NAPQI.' },
+        { id: crypto.randomUUID(), materia: 'oftalmologia', tema: 'Glaucoma', pregunta: '¿Qué hallazgo es típico del glaucoma crónico?', opciones: {A:'Midriasis reactiva', B:'Edema de papila', C:'Excavación papilar aumentada', D:'Hemorragia vítrea'}, correcta: 'C', explicacion: 'Aumento de la excavación por pérdida de fibras.' }
+      ];
+      localStorage.setItem(LS_QUESTIONS, JSON.stringify(seed));
+      return seed;
+    }
+    function saveQuestionsLocal(arr) { localStorage.setItem(LS_QUESTIONS, JSON.stringify(arr)); }
+
+    let QUESTIONS = [];
+
+    async function loadQuestions(){
+      if (SETTINGS.useSheets && SHEETS_URL) {
+        return await loadQuestionsFromSheets();
+      } else {
+        return loadQuestionsLocal();
+      }
+    }
+
+    async function addQuestion(q){
+      if (SETTINGS.useSheets && SHEETS_URL) {
+        await saveQuestionToSheets(q);
+        QUESTIONS = await loadQuestionsFromSheets();
+        ensureMateriasFromData(QUESTIONS);
+      } else {
+        QUESTIONS.push(q);
+        saveQuestionsLocal(QUESTIONS);
+        ensureMateriasFromData(QUESTIONS);
+      }
+    }
+
+    // =====================
+    // Estado global
+    // =====================
+    let currentMateria = null;
+    let quizIndex = 0;
+    let quizPool = [];
+    let quizCorrect = 0;
+
+    // =====================
+    // Helpers UI
+    // =====================
+    const qs = (sel) => document.querySelector(sel);
+    const elMateriaButtons = qs('#materia-buttons');
+    const sectionMaterias = qs('#materia-selection-container');
+    const sectionQuiz = qs('#quiz-container');
+    const sectionEditor = qs('#editor-container');
+    const storageBanner = qs('#storage-banner');
+    const storageMode = qs('#storage-mode');
+    const sheetsPreview = qs('#sheets-url-preview');
+
+    const quizTitle = qs('#quiz-title');
+    const quizProgress = qs('#quiz-progress');
+    const quizMeta = qs('#quiz-meta');
+    const quizQuestion = qs('#quiz-question');
+    const quizOptions = qs('#quiz-options');
+    const quizFeedback = qs('#quiz-feedback');
+    const btnNext = qs('#btn-next');
+    const quizSummary = qs('#quiz-summary');
+    const summaryLine = qs('#summary-line');
+
+    const editorMateria = qs('#editor-materia');
+    const listQuestions = qs('#list-questions');
+    const countQuestions = qs('#count-questions');
+
+    function show(view) {
+      sectionMaterias.classList.toggle('hidden', view !== 'materias');
+      sectionQuiz.classList.toggle('hidden', view !== 'quiz');
+      sectionEditor.classList.toggle('hidden', view !== 'editor');
+    }
+
+    function renderStorageBanner(){
+      storageMode.textContent = SETTINGS.useSheets && SETTINGS.sheetsUrl ? 'Google Sheets (Web App)' : 'Local (este navegador)';
+      sheetsPreview.textContent = SETTINGS.useSheets ? `→ ${SETTINGS.sheetsUrl}` : '';
+    }
+
+    qs('#btn-toggle-storage').addEventListener('click', async () => {
+      if (!SETTINGS.useSheets) {
+        const url = prompt('Pegá aquí la URL del Web App de Google Apps Script (termina en /exec):', SETTINGS.sheetsUrl || '');
+        if (url) {
+          SETTINGS.sheetsUrl = url.trim();
+          SETTINGS.useSheets = true;
+          saveSettings();
+          location.reload();
         }
-        function selectMateria(materiaId) { /* ... (sin cambios) ... */ }
-        function showTemaSelection() { /* ... (sin cambios) ... */ }
-        function selectTema(tema) { /* ... (usa shuffleArray importado) ... */ }
-        function alternarVista() {
-            // Mueve listeners del editor aquí
-            if (vistaActual === 'quiz') {
-                // ... (código para mostrar editor) ...
-                console.log('Adjuntando listeners del editor...');
-                // Usa {once: false} si quieres que funcionen cada vez que se abre
-                if(btnIaGenerate) btnIaGenerate.addEventListener('click', generateReviewQuestions);
-                if(btnToggleCargaMasiva) btnToggleCargaMasiva.addEventListener('click', toggleCargaMasiva);
-                if(btnAnalizar) btnAnalizar.addEventListener('click', analyzePastedText);
-            } else {
-                // ... (código para mostrar quiz) ...
-                 // Podrías remover los listeners del editor aquí si usaste {once: false}
-            }
+      } else {
+        if (confirm('Volver al modo Local (no escribirá en Sheets)?')){
+          SETTINGS.useSheets = false; saveSettings(); location.reload();
         }
-        function populateTemaDatalist() { /* ... (sin cambios) ... */ }
-        function setFeedback(message, isError = false) { /* ... (sin cambios) ... */ }
-        function getUniqueThemes() { /* ... (sin cambios) ... */ }
+      }
+    });
 
-        // --- FUNCIONES PARA AGREGAR MATERIAS (CON GUARDADO JSONP) ---
-        function generateMateriaId(name) { /* ... (sin cambios) ... */ }
-        function addNewMateria() { /* ... (usa JSONP y handleSaveResult) ... */ }
+    function renderMateriaButtons() {
+      elMateriaButtons.innerHTML = '';
+      Object.entries(MATERIAS).forEach(([id, conf]) => {
+        const btn = document.createElement('button');
+        btn.className = `p-4 rounded-2xl shadow text-left text-white font-semibold ${conf.color} ${conf.hover}`;
+        btn.innerHTML = `<div class="text-xs uppercase tracking-wide opacity-80">${id}</div><div class="text-xl">${conf.name}</div>`;
+        btn.addEventListener('click', () => selectMateria(id));
+        elMateriaButtons.appendChild(btn);
+      });
+    }
 
-        // --- FUNCIONES DE ROBUSTEZ Y API ---
-        function cleanJsonString(jsonString) { /* ... (sin cambios) ... */ }
-        async function fetchWithRetry(url, options, retries = 3) { /* ... (sin cambios) ... */ }
+    function selectMateria(id) {
+      currentMateria = id;
+      startQuiz();
+    }
 
-        // --- ✨ NUEVAS FUNCIONES DE IA ---
-        async function getHint() { /* ... (Adjuntar listener en cargarPregunta) ... */ }
-        async function getELI5Explanation() { /* ... (Adjuntar listener en seleccionarOpcion) ... */ }
-        async function generateReviewQuestions() { /* ... (Listener adjunto en alternarVista) ... */ }
-        async function verifySingleQuestion(isFromQuiz = false) { /* ... (Listeners adjuntos en openEditModal y seleccionarOpcion) ... */ }
-        async function validateAndRefineQuestions(questions) { /* ... */ }
-        async function structurePastedText(rawText, tema) { /* ... */ }
-        async function analyzePastedText() { /* ... (Listener adjunto en alternarVista) ... */ }
+    // =====================
+    // Quiz
+    // =====================
+    function startQuiz() {
+      show('quiz');
+      const conf = MATERIAS[currentMateria] || { name: currentMateria };
+      quizTitle.textContent = conf.name;
+      quizIndex = 0;
+      quizCorrect = 0;
+      quizPool = QUESTIONS.filter(q => q.materia === currentMateria);
+      if (quizPool.length === 0) { quizCardEmpty(); return; }
+      renderQuestion();
+    }
 
-        // --- FUNCIONES PRINCIPALES DEL CUESTIONARIO ---
-        function cargarPregunta() {
-             // ... (código reset UI y manejo sin preguntas) ...
-             // Adjunta listeners para ESTA pregunta
-             if (btnPista) btnPista.addEventListener('click', getHint, { once: true });
-             // ... (código crear botones opción y adjuntar su listener) ...
-             (pregunta.opciones || []).forEach((opcion, index) => {
-                 const btn = document.createElement('button');
-                 /* ... set text and classes ... */
-                 btn.addEventListener('click', seleccionarOpcion); // Este se adjunta por cada opción
-                 opcionesContainer.appendChild(btn);
-             });
-        }
-        function seleccionarOpcion(event) {
-             // ... (código comprobar respuesta y mostrar feedback) ...
-             if (pregunta.justificacion && pregunta.justificacion.trim() !== "") {
-                 // ... (mostrar justificación) ...
-                 // Adjunta listeners justificación
-                 if (btnEli5) btnEli5.addEventListener('click', getELI5Explanation, { once: true });
-                 if (btnVerifyQuiz) btnVerifyQuiz.addEventListener('click', () => verifySingleQuestion(true), { once: true });
-                 /* ... mostrar btnVerifyQuiz ... */
-             }
-             // Adjunta listener Siguiente (importante remover el anterior si existe)
-             if(btnSiguiente) {
-                 // Clona y reemplaza para remover listeners previos de forma segura
-                 const newBtnSiguiente = btnSiguiente.cloneNode(true);
-                 btnSiguiente.parentNode.replaceChild(newBtnSiguiente, btnSiguiente);
-                 btnSiguiente = newBtnSiguiente; // Actualiza la referencia
-                 btnSiguiente.addEventListener('click', siguientePregunta, { once: true });
-                 btnSiguiente.disabled = false;
-                 /* ... update styles ... */
-             }
-        }
+    function quizCardEmpty() {
+      quizProgress.textContent = '';
+      quizMeta.textContent = '';
+      quizQuestion.textContent = 'Aún no hay preguntas para esta materia.';
+      quizOptions.innerHTML = '';
+      quizFeedback.classList.add('hidden');
+      btnNext.disabled = true;
+      quizSummary.classList.add('hidden');
+    }
 
-        // --- MANEJO DE VISTAS ---
-        // function shuffleArray(array) { /* ... (Importada) ... */ }
-        function toggleRandomMode() { /* ... (usa shuffleArray importado) ... */ }
-        function toggleCargaMasiva() { /* ... (Listener adjunto en alternarVista) ... */ }
-        function siguientePregunta() {
-            if (!respuestaComprobada) return;
-            indicePreguntaActual++;
-            cargarPregunta(); // Carga la siguiente pregunta y sus listeners
-        }
-        function mostrarResultados() {
-             // ... (código mostrar puntaje) ...
-             // Adjunta listener Reiniciar (removiendo el anterior)
-             if(btnReiniciar) {
-                 const newBtnReiniciar = btnReiniciar.cloneNode(true);
-                 btnReiniciar.parentNode.replaceChild(newBtnReiniciar, btnReiniciar);
-                 btnReiniciar = newBtnReiniciar; // Actualiza referencia
-                 btnReiniciar.addEventListener('click', handleReiniciarClick, { once: true });
-             }
-        }
-        function handleReiniciarClick() { /* ... (llama a reiniciarCuestionario) ... */ }
-        function reiniciarCuestionario() { /* ... (llama a cargarPregunta) ... */ }
+    function renderQuestion() {
+      const q = quizPool[quizIndex];
+      quizProgress.textContent = `Pregunta ${quizIndex + 1} de ${quizPool.length}`;
+      quizMeta.textContent = q.tema ? `Tema: ${q.tema}` : '';
+      quizQuestion.textContent = q.pregunta;
+      quizOptions.innerHTML = '';
+      quizFeedback.className = 'mt-4 hidden p-3 rounded-lg text-sm';
+      btnNext.disabled = true;
 
+      ['A','B','C','D'].forEach(letter => {
+        if (!q.opciones[letter]) return;
+        const opt = document.createElement('button');
+        opt.type = 'button';
+        opt.className = 'w-full text-left p-3 rounded-xl border hover:bg-slate-50';
+        opt.innerHTML = `<span class=\"font-bold mr-2\">${letter})</span>${q.opciones[letter]}`;
+        opt.addEventListener('click', () => handleAnswer(letter));
+        quizOptions.appendChild(opt);
+      });
+    }
 
-        // --- INICIO DE LA APLICACIÓN (CORREGIDO) ---
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOM cargado.');
-            assignDomReferences();
-            console.log('Referencias asignadas.');
+    function handleAnswer(letter) {
+      const q = quizPool[quizIndex];
+      const correct = q.correcta;
+      const ok = letter === correct;
+      if (ok) quizCorrect++;
+      quizFeedback.className = `mt-4 p-3 rounded-lg text-sm ${ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`;
+      quizFeedback.innerHTML = ok ? '¡Correcto!' : `Incorrecto. Respuesta correcta: <b>${correct}</b>`;
+      if (q.explicacion) {
+        const p = document.createElement('div');
+        p.className = 'mt-2 text-slate-600';
+        p.textContent = q.explicacion;
+        quizFeedback.appendChild(p);
+      }
+      quizFeedback.classList.remove('hidden');
+      btnNext.disabled = false;
+    }
 
-            console.log('Adjuntando listeners iniciales...');
-            // Listeners para elementos siempre presentes
-            if(btnAlternarVista) btnAlternarVista.addEventListener('click', alternarVista); else console.error('btnAlternarVista no encontrado');
-            if(btnCambiarMateria) btnCambiarMateria.addEventListener('click', showMateriaSelection); else console.error('btnCambiarMateria no encontrado');
-            if(btnVolverMateria) btnVolverMateria.addEventListener('click', showMateriaSelection); else console.error('btnVolverMateria no encontrado');
-            if(btnGoToEditor) btnGoToEditor.addEventListener('click', () => { if(temaSelectionContainer) temaSelectionContainer.classList.add('hidden'); if(quizHeaderButtons) quizHeaderButtons.classList.remove('hidden'); alternarVista(); }); else console.error('btnGoToEditor no encontrado');
-            if(btnRandom) btnRandom.addEventListener('click', toggleRandomMode); else console.error('btnRandom no encontrado');
-            if(btnAddMateria) btnAddMateria.addEventListener('click', addNewMateria); else console.error('btnAddMateria no encontrado');
-             // Nota: Los listeners para btnIaGenerate, btnToggleCargaMasiva, btnAnalizar se mueven a alternarVista
-             // Nota: Los listeners para btnSiguiente, btnReiniciar, btnPista, etc., se mueven a sus funciones respectivas
-            console.log('Listeners iniciales adjuntados.');
+    btnNext.addEventListener('click', () => {
+      quizIndex++;
+      if (quizIndex >= quizPool.length) { showSummary(); } else { renderQuestion(); }
+    });
 
-            initApp(); // Llama a initApp para empezar la carga de datos
-        });
+    function showSummary() {
+      quizSummary.classList.remove('hidden');
+      summaryLine.textContent = `Acertaste ${quizCorrect} de ${quizPool.length} preguntas.`;
+    }
 
-    </script>
-    </body>
+    qs('#btn-restart').addEventListener('click', startQuiz);
+    qs('#btn-back').addEventListener('click', () => show('materias'));
+    qs('#btn-back-to-materias').addEventListener('click', () => show('materias'));
+    qs('#btn-open-editor').addEventListener('click', () => { syncEditorMateria(); show('editor'); });
+
+    // =====================
+    // Editor
+    // =====================
+    function syncEditorMateria(selectId = currentMateria) {
+      editorMateria.innerHTML = '';
+      Object.entries(MATERIAS).forEach(([id, conf]) => {
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = conf.name;
+        if (id === selectId) opt.selected = true;
+        editorMateria.appendChild(opt);
+      });
+      renderQuestionsList();
+    }
+
+    function currentEditorMateria() { return editorMateria.value; }
+
+    function renderQuestionsList() {
+      const id = currentEditorMateria();
+      const arr = QUESTIONS.filter(q => q.materia === id);
+      countQuestions.textContent = `${arr.length} pregunta(s)`;
+      listQuestions.innerHTML = '';
+      if (arr.length === 0) {
+        listQuestions.innerHTML = '<div class="p-3 rounded-lg bg-slate-50 text-slate-600">No hay preguntas aún. Usá el formulario para agregar.</div>';
+        return;
+      }
+      arr.forEach(q => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-xl border bg-white';
+        card.innerHTML = `
+          <div class="text-xs text-slate-500">Tema: ${q.tema || '—'}</div>
+          <div class="font-semibold">${q.pregunta}</div>
+          <div class="mt-1 text-sm text-slate-600">A) ${q.opciones.A || ''}</div>
+          <div class="text-sm text-slate-600">B) ${q.opciones.B || ''}</div>
+          <div class="text-sm text-slate-600">C) ${q.opciones.C || ''}</div>
+          <div class="text-sm text-slate-600">D) ${q.opciones.D || ''}</div>
+          <div class="mt-1 text-sm"><span class="font-semibold">Correcta:</span> ${q.correcta}</div>
+          ${q.explicacion ? `<div class=\"mt-1 text-sm text-slate-600\">${q.explicacion}</div>` : ''}
+        `;
+        listQuestions.appendChild(card);
+      });
+    }
+
+    qs('#form-question').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const materia = currentEditorMateria();
+      const tema = qs('#q-topic').value.trim();
+      const pregunta = qs('#q-text').value.trim();
+      const A = qs('#q-a').value.trim();
+      const B = qs('#q-b').value.trim();
+      const C = qs('#q-c').value.trim();
+      const D = qs('#q-d').value.trim();
+      const correcta = qs('#q-correct').value;
+      const explicacion = qs('#q-explain').value.trim();
+
+      if (!pregunta || !A || !B) { alert('Completá al menos Pregunta, A y B.'); return; }
+      if (!['A','B','C','D'].includes(correcta)) { alert('Seleccioná la opción correcta.'); return; }
+
+      const q = { id: crypto.randomUUID(), materia, tema, pregunta, opciones: { A, B, C, D }, correcta, explicacion };
+      try {
+        await addQuestion(q);
+        renderQuestionsList();
+        if (currentMateria === materia) startQuiz();
+        e.target.reset();
+      } catch (err) {
+        alert(err.message || 'Error guardando la pregunta');
+      }
+    });
+
+    qs('#btn-clear').addEventListener('click', () => { qs('#form-question').reset(); });
+    editorMateria.addEventListener('change', renderQuestionsList);
+
+    // =====================
+    // Modales: Agregar Materia
+    // =====================
+    const modalMateria = qs('#modal-materia');
+    const btnAddMateria = qs('#btn-add-materia');
+    const matId = qs('#mat-id');
+    const matName = qs('#mat-name');
+    const matColor = qs('#mat-color');
+    const matFeedback = qs('#mat-feedback');
+    const matCancel = qs('#mat-cancel');
+    const matSave = qs('#mat-save');
+
+    function openMateriaModal() {
+      matId.value = '';
+      matName.value = '';
+      matColor.value = 'bg-indigo-600|hover:bg-indigo-700';
+      matFeedback.className = 'hidden text-sm p-2 rounded';
+      matFeedback.textContent = '';
+      modalMateria.classList.remove('hidden');
+    }
+    function closeMateriaModal() { modalMateria.classList.add('hidden'); }
+    function setMatFeedback(msg, error = false) {
+      matFeedback.textContent = msg;
+      matFeedback.className = 'text-sm p-2 rounded ' + (error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+      matFeedback.classList.remove('hidden');
+    }
+
+    btnAddMateria.addEventListener('click', openMateriaModal);
+    matCancel.addEventListener('click', closeMateriaModal);
+    modalMateria.addEventListener('click', (e) => { if (e.target === modalMateria) closeMateriaModal(); });
+
+    matSave.addEventListener('click', () => {
+      const id = (matId.value || '').trim().toLowerCase();
+      const name = (matName.value || '').trim();
+      const [color, hover] = (matColor.value || 'bg-indigo-600|hover:bg-indigo-700').split('|');
+
+      if (!/^[a-z0-9-]{3,}$/.test(id)) return setMatFeedback('ID inválida. Usa minúsculas, números o guiones. Mínimo 3 caracteres.', true);
+      if (!name || name.length < 3) return setMatFeedback('Poné un nombre visible de al menos 3 caracteres.', true);
+      if (MATERIAS[id]) return setMatFeedback('Ya existe una materia con esa ID.', true);
+
+      MATERIAS[id] = { name, color, hover };
+      saveMaterias();
+      renderMateriaButtons();
+      syncEditorMateria(id);
+      closeMateriaModal();
+      selectMateria(id);
+    });
+
+    // =====================
+    // Modal Administrar Materia (renombrar / eliminar)
+    // =====================
+    const modalManage = qs('#modal-manage');
+    const manageCurrent = qs('#manage-current');
+    const manageNewName = qs('#manage-newname');
+    const manageFeedback = qs('#manage-feedback');
+    const manageCancel = qs('#manage-cancel');
+    const manageSave = qs('#manage-save');
+    const manageDelete = qs('#manage-delete');
+
+    function openManageModal() {
+      const id = currentEditorMateria();
+      const conf = MATERIAS[id];
+      manageCurrent.textContent = `${conf?.name || id} (id: ${id})`;
+      manageNewName.value = conf?.name || '';
+      manageFeedback.className = 'hidden text-sm p-2 rounded';
+      manageFeedback.textContent = '';
+      modalManage.classList.remove('hidden');
+    }
+    function closeManageModal() { modalManage.classList.add('hidden'); }
+    function setManageFeedback(msg, error=false) {
+      manageFeedback.textContent = msg;
+      manageFeedback.className = 'text-sm p-2 rounded ' + (error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+      manageFeedback.classList.remove('hidden');
+    }
+
+    qs('#btn-manage-materia').addEventListener('click', openManageModal);
+    manageCancel.addEventListener('click', closeManageModal);
+    modalManage.addEventListener('click', (e) => { if (e.target === modalManage) closeManageModal(); });
+
+    manageSave.addEventListener('click', () => {
+      const id = currentEditorMateria();
+      const name = manageNewName.value.trim();
+      if (!name || name.length < 3) return setManageFeedback('Nombre muy corto.', true);
+      if (MATERIAS[id]) {
+        MATERIAS[id].name = name;
+        saveMaterias();
+        renderMateriaButtons();
+        setManageFeedback('Nombre actualizado.');
+        syncEditorMateria(id);
+        if (currentMateria === id) startQuiz();
+      }
+    });
+
+    manageDelete.addEventListener('click', () => {
+      const id = currentEditorMateria();
+      const n = QUESTIONS.filter(q => q.materia === id).length;
+      const msg = n > 0 ? `La materia tiene ${n} pregunta(s). Se eliminarán también. ¿Seguro?` : '¿Eliminar la materia?';
+      if (!confirm(msg)) return;
+      QUESTIONS = QUESTIONS.filter(q => q.materia !== id);
+      if (!SETTINGS.useSheets) saveQuestionsLocal(QUESTIONS); // en Sheets no borramos remotamente aquí
+      delete MATERIAS[id];
+      saveMaterias();
+      if (currentMateria === id) { currentMateria = null; show('materias'); }
+      renderMateriaButtons();
+      syncEditorMateria(Object.keys(MATERIAS)[0]);
+      closeManageModal();
+    });
+
+    // =====================
+    // Nav
+    // =====================
+    qs('#nav-home').addEventListener('click', () => show('materias'));
+    qs('#nav-editor').addEventListener('click', () => { syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]); show('editor'); });
+
+    // =====================
+    // Init
+    // =====================
+    (async function init(){
+      renderStorageBanner();
+      loadMaterias();
+      try {
+        QUESTIONS = await loadQuestions();
+      } catch (e) {
+        alert(e.message || 'No se pudieron cargar las preguntas. Paso a modo Local.');
+        SETTINGS.useSheets = false; saveSettings();
+        QUESTIONS = loadQuestionsLocal();
+      }
+      ensureMateriasFromData(QUESTIONS);
+      renderMateriaButtons();
+      syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
+      show('materias');
+    })();
+  </script>
+</body>
 </html>
-
