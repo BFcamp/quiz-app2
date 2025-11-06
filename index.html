@@ -130,6 +130,59 @@
         <div id="list-questions" class="grid gap-3"></div>
       </div>
     </section>
+    <!-- Importador (bulk con IA) -->
+    <section id="bulk-container" class="hidden space-y-6">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 class="text-3xl font-extrabold tracking-tight">Importar preguntas (IA)</h2>
+          <p class="text-slate-600">Pegá muchas preguntas juntas. La IA las estructura y las guarda de una.</p>
+        </div>
+        <div class="flex flex-col gap-2 items-end">
+          <label class="text-xs text-slate-500">OpenAI API Key (se guarda localmente)</label>
+          <div class="flex gap-2">
+            <input id="oaikey" type="password" placeholder="sk-..." class="p-2 border rounded-lg w-64" />
+            <button id="btn-save-key" class="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 items-center">
+        <label class="text-sm">Materia por defecto</label>
+        <select id="bulk-materia" class="p-2 border rounded-lg"></select>
+        <span class="text-xs text-slate-500">Si el texto no trae materia, usaré esta.</span>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Pega aquí el texto crudo</label>
+        <textarea id="bulk-text" rows="12" class="w-full p-3 border rounded-xl" placeholder="Ejemplo:
+Materia: Toxicología
+Tema: Antídotos
+Pregunta: ¿Cuál es el antídoto del paracetamol?
+A) N-acetilcisteína
+B) Flumazenil
+C) Atropina
+D) Naloxona
+Correcta: A
+Explicación: ...
+
+---
+Tema: Glaucoma
+Pregunta: ¿Qué hallazgo es típico del glaucoma crónico?
+A) ...
+B) ...
+C) ...
+D) ...
+Correcta: C"></textarea>
+      </div>
+
+      <div class="flex gap-2">
+        <button id="btn-bulk-analyze" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Analizar y guardar</button>
+        <button id="btn-bulk-validate" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Solo analizar</button>
+      </div>
+
+      <div id="bulk-log" class="hidden p-3 rounded-xl border bg-white text-sm"></div>
+    </section>
+
   </main>
 
   <!-- Modal Crear Materia -->
@@ -197,118 +250,6 @@
     // =====================
     const LS_MATERIAS = 'materias_config';
     const LS_QUESTIONS = 'questions_data_v1';
-
-    // --- Normalizador para items que vengan del parseo de Gemini ---
-function normalizeGeminiItem(item, fallbackMateria = null) {
-  // Acepta variantes de nombres comunes que suele devolver LLMs
-  const materia =
-    (item.materia?.toString().trim().toLowerCase()) ||
-    (fallbackMateria ? String(fallbackMateria).trim().toLowerCase() : '');
-
-  const tema = (item.tema || item.topic || '').toString().trim();
-  const pregunta = (item.pregunta || item.question || '').toString().trim();
-
-  // Opciones: acepta A/B/C/D, array, o un objeto con keys tipo 'a','b','c','d'
-  let A = item.A ?? item.a;
-  let B = item.B ?? item.b;
-  let C = item.C ?? item.c;
-  let D = item.D ?? item.d;
-  if (!A && Array.isArray(item.opciones || item.options)) {
-    const arr = (item.opciones || item.options).map(String);
-    [A,B,C,D] = [arr[0] || '', arr[1] || '', arr[2] || '', arr[3] || ''];
-  }
-  A = (A || '').toString().trim();
-  B = (B || '').toString().trim();
-  C = (C || '').toString().trim();
-  D = (D || '').toString().trim();
-
-  // Correcta: acepta 'A'/'B'/'C'/'D' ó el texto completo de la opción
-  let correcta = (item.correcta || item.correct || '')
-    .toString()
-    .trim();
-
-  // Si vino el texto de la opción, mapear a letra
-  const mapTextoALetra = (txt) => {
-    if (!txt) return '';
-    const t = txt.toString().trim().toLowerCase();
-    if (t && t === A.toLowerCase()) return 'A';
-    if (t && t === B.toLowerCase()) return 'B';
-    if (t && t === C.toLowerCase()) return 'C';
-    if (t && t === D.toLowerCase()) return 'D';
-    return '';
-  };
-
-  // Normalizar correcta
-  let correctaNorm = correcta.toUpperCase();
-  if (!['A','B','C','D'].includes(correctaNorm)) {
-    correctaNorm = mapTextoALetra(correcta) || '';
-  }
-
-  const explicacion = (item.explicacion || item.explanation || '').toString().trim();
-
-  return {
-    materia,
-    tema,
-    pregunta,
-    opciones: { A, B, C, D },
-    correcta: correctaNorm,
-    explicacion
-  };
-}
-
-// --- Validador mínimo para no cortar el flujo del bulk ---
-function isValidQuestion(q) {
-  if (!q?.pregunta || !q?.opciones?.A || !q?.opciones?.B) return false;
-  if (!['A','B','C','D'].includes(q.correcta)) return false;
-  return true;
-}
-
-// --- BULK: ingesta desde Gemini (o desde cualquier parser) ---
-// `items` es el array que te devuelve Gemini ya estructurado.
-// `fallbackMateria` se usa si el item no trae 'materia'.
-async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
-  if (!Array.isArray(items) || items.length === 0) return { added: 0, rejected: 0 };
-
-  // 1) Normalizar
-  const normalized = items.map(it => normalizeGeminiItem(it, fallbackMateria));
-
-  // 2) Filtrar válidas / inválidas
-  const valid = [];
-  const rejected = [];
-  for (const q of normalized) (isValidQuestion(q) ? valid : rejected).push(q);
-
-  if (valid.length === 0) return { added: 0, rejected: rejected.length };
-
-  // 3) Asegurar materias nuevas (por si llegaron ids que no existen aún)
-  const tempQuestions = valid.map(v => ({ materia: v.materia }));
-  ensureMateriasFromData(tempQuestions);
-
-  // 4) Armar objetos finales con id
-  const withIds = valid.map(v => ({
-    id: crypto.randomUUID(),
-    materia: v.materia,
-    tema: v.tema,
-    pregunta: v.pregunta,
-    opciones: v.opciones,
-    correcta: v.correcta,
-    explicacion: v.explicacion
-  }));
-
-  // 5) MERGE local y guardar UNA sola vez (esto dispara el mirror a Sheets por cada nueva)
-  const merged = [...QUESTIONS, ...withIds];
-  saveQuestions(merged); // <— mantiene el comportamiento actual y dispara mirror a Sheets de las NUEVAS
-  QUESTIONS = merged;
-
-  // 6) Si estás en la misma materia, refrescar UI (opcional)
-  if (typeof currentMateria === 'string') {
-    // Si el bulk apuntaba a una materia concreta, podés dejar al usuario ahí:
-    // currentMateria = withIds[0].materia || currentMateria;
-    // startQuiz();
-  }
-
-  return { added: withIds.length, rejected: rejected.length };
-}
-
 
     // === OPCIONAL: Mirror a Google Sheets sin tocar el editor ===
     // Pegá aquí tu URL de Web App (Apps Script -> despliegue tipo Web App que termina en /exec)
@@ -753,7 +694,123 @@ async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
     renderMateriaButtons();
     syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
     show('materias');
+  // === Importador IA (bulk) ===
+    (function bulkModule(){
+      const sectionBulk = document.querySelector('#bulk-container');
+      const navBulk = document.querySelector('#nav-bulk');
+      if (navBulk) {
+        navBulk.addEventListener('click', () => {
+          // ocultar otras vistas
+          document.querySelector('#materia-selection-container').classList.add('hidden');
+          document.querySelector('#quiz-container').classList.add('hidden');
+          document.querySelector('#editor-container').classList.add('hidden');
+          sectionBulk.classList.remove('hidden');
+          syncBulkMateria(currentMateria || Object.keys(MATERIAS)[0]);
+          const k = getApiKey(); if (k) document.querySelector('#oaikey').value = k;
+        });
+      }
+
+      // helpers existentes o añadidos
+      function syncBulkMateria(selectId = currentMateria) {
+        const sel = document.querySelector('#bulk-materia');
+        if (!sel) return;
+        sel.innerHTML = '';
+        Object.entries(MATERIAS).forEach(([id, conf]) => {
+          const opt = document.createElement('option');
+          opt.value = id; opt.textContent = conf.name;
+          if (id === selectId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      }
+      function normalizeGeminiItem(item, fallbackMateria = null) {
+        const materia = (item.materia?.toString().trim().toLowerCase()) || (fallbackMateria ? String(fallbackMateria).trim().toLowerCase() : '');
+        const tema = (item.tema || item.topic || '').toString().trim();
+        const pregunta = (item.pregunta || item.question || '').toString().trim();
+        let A = item.A ?? item.a; let B = item.B ?? item.b; let C = item.C ?? item.c; let D = item.D ?? item.d;
+        if (!A && Array.isArray(item.opciones || item.options)) {
+          const arr = (item.opciones || item.options).map(String);
+          [A,B,C,D] = [arr[0] || '', arr[1] || '', arr[2] || '', arr[3] || ''];
+        }
+        A = (A || '').toString().trim(); B = (B || '').toString().trim(); C = (C || '').toString().trim(); D = (D || '').toString().trim();
+        let correcta = (item.correcta || item.correct || '').toString().trim();
+        const mapTextoALetra = (txt) => {
+          if (!txt) return ''; const t = txt.toString().trim().toLowerCase();
+          if (t === A.toLowerCase()) return 'A'; if (t === B.toLowerCase()) return 'B'; if (t === C.toLowerCase()) return 'C'; if (t === D.toLowerCase()) return 'D';
+          return '';
+        };
+        let correctaNorm = correcta.toUpperCase();
+        if (!['A','B','C','D'].includes(correctaNorm)) correctaNorm = mapTextoALetra(correcta) || '';
+        const explicacion = (item.explicacion || item.explanation || '').toString().trim();
+        return { materia, tema, pregunta, opciones: {A,B,C,D}, correcta: correctaNorm, explicacion };
+      }
+      function isValidQuestion(q){ return !!(q?.pregunta && q?.opciones?.A && q?.opciones?.B && ['A','B','C','D'].includes(q.correcta)); }
+      async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
+        if (!Array.isArray(items) || items.length === 0) return { added: 0, rejected: 0 };
+        const normalized = items.map(it => normalizeGeminiItem(it, fallbackMateria));
+        const valid = []; const rejected = [];
+        for (const q of normalized) (isValidQuestion(q) ? valid : rejected).push(q);
+        if (valid.length === 0) return { added: 0, rejected: rejected.length };
+        ensureMateriasFromData(valid.map(v => ({ materia: v.materia })));
+        const withIds = valid.map(v => ({ id: crypto.randomUUID(), ...v }));
+        const merged = [...QUESTIONS, ...withIds];
+        saveQuestions(merged);
+        QUESTIONS = merged;
+        return { added: withIds.length, rejected: rejected.length };
+      }
+
+      function getApiKey() { return localStorage.getItem('openai_api_key') || ''; }
+      function setApiKey(k) { localStorage.setItem('openai_api_key', k || ''); }
+      function logBulk(html){ const box = document.querySelector('#bulk-log'); box.innerHTML = html; box.classList.remove('hidden'); }
+      function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+      const btnSaveKey = document.querySelector('#btn-save-key');
+      if (btnSaveKey) btnSaveKey.addEventListener('click', () => {
+        const k = document.querySelector('#oaikey').value.trim(); setApiKey(k);
+        logBulk(`API Key guardada${k?'.':''}`);
+      });
+
+      async function callOpenAIToParse(rawText){
+        const key = getApiKey(); if (!key) throw new Error('Falta API Key. Colócala arriba.');
+        const sys = `Eres un extractor estricto. Devuelve SOLO JSON válido con este shape:
+{"items":[{"materia":"opcional","tema":"string opcional","pregunta":"string","A":"string","B":"string","C":"string opcional","D":"string opcional","correcta":"A|B|C|D o el texto exacto de la opción","explicacion":"opcional"}]}`;
+        const user = `Texto crudo a estructurar:
+
+${rawText}`;
+        const body = { model: 'gpt-4o-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: sys }, { role: 'user', content: user } ] };
+        const res = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error('Error API: ' + res.status);
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content; if (!content) throw new Error('Respuesta vacía de la IA');
+        let json; try { json = JSON.parse(content); } catch { throw new Error('La IA no devolvió JSON válido.'); }
+        if (!Array.isArray(json.items)) throw new Error('Falta array items en JSON.');
+        return json.items;
+      }
+
+      const btnValidate = document.querySelector('#btn-bulk-validate');
+      if (btnValidate) btnValidate.addEventListener('click', async () => {
+        const raw = document.querySelector('#bulk-text').value.trim();
+        if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
+        try {
+          const items = await callOpenAIToParse(raw);
+          const preview = items.slice(0,5);
+          logBulk(`<b>Análisis OK</b><br/>Total detectadas: ${items.length}<br/>Preview (5):<pre class="mt-2 p-2 bg-slate-50 rounded">${escapeHtml(JSON.stringify(preview, null, 2))}</pre>`);
+        } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
+      });
+
+      const btnAnalyze = document.querySelector('#btn-bulk-analyze');
+      if (btnAnalyze) btnAnalyze.addEventListener('click', async () => {
+        const raw = document.querySelector('#bulk-text').value.trim();
+        if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
+        const fallback = document.querySelector('#bulk-materia').value;
+        try {
+          logBulk('Analizando…');
+          const items = await callOpenAIToParse(raw);
+          const { added, rejected } = await addBulkQuestionsFromGemini(items, fallback);
+          logBulk(`<b>Importación completa</b><br/>Agregadas: ${added} · Rechazadas: ${rejected}`);
+          if (typeof renderQuestionsList === 'function') renderQuestionsList();
+        } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
+      });
+    })();
   </script>
 </body>
 </html>
-
