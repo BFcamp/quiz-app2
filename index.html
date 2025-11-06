@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App Quiz | Materias dinámicas</title>
+  <title>App Quiz | Materias dinámicas + Editor + Importar IA</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 40; }
@@ -17,6 +17,7 @@
       <nav class="flex items-center gap-2 text-sm">
         <button id="nav-home" class="px-3 py-2 rounded-lg hover:bg-slate-100">Materias</button>
         <button id="nav-editor" class="px-3 py-2 rounded-lg hover:bg-slate-100">Editor</button>
+        <button id="nav-bulk" class="px-3 py-2 rounded-lg hover:bg-slate-100">Importar</button>
       </nav>
     </div>
   </header>
@@ -72,7 +73,7 @@
           <h2 class="text-3xl font-extrabold tracking-tight">Editor de preguntas</h2>
           <p class="text-slate-600">Elegí materia y cargá preguntas tipo choice.</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 items-center">
           <select id="editor-materia" class="p-2 border rounded-lg"></select>
           <button id="btn-manage-materia" class="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Administrar materia</button>
         </div>
@@ -130,6 +131,7 @@
         <div id="list-questions" class="grid gap-3"></div>
       </div>
     </section>
+
     <!-- Importador (bulk con IA) -->
     <section id="bulk-container" class="hidden space-y-6">
       <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -246,44 +248,31 @@ Correcta: C"></textarea>
 
   <script type="module">
     // =====================
-    // Persistencia básica
+    // Persistencia básica + (opcional) espejo a Google Sheets
     // =====================
     const LS_MATERIAS = 'materias_config';
     const LS_QUESTIONS = 'questions_data_v1';
 
-    // === OPCIONAL: Mirror a Google Sheets sin tocar el editor ===
-    // Pegá aquí tu URL de Web App (Apps Script -> despliegue tipo Web App que termina en /exec)
-    // Dejalo vacío si NO querés usar Sheets.
+    // OPCIONAL: pegá tu URL de Web App (Apps Script -> /exec) para espejar altas a Sheets.
+    // Si lo dejas vacío, la app funciona 100% local.
     const SHEETS_URL = '';
-
-    function sheetsEnabled() { return typeof SHEETS_URL === 'string' && SHEETS_URL.startsWith('http'); }
+    function sheetsEnabled(){ return typeof SHEETS_URL === 'string' && SHEETS_URL.startsWith('http'); }
     async function sheetsAddQuestion(q){
       if (!sheetsEnabled()) return;
       try {
         const body = new URLSearchParams({
-          action: 'add',
-          id: q.id,
-          materia: q.materia,
-          tema: q.tema || '',
-          pregunta: q.pregunta,
-          A: (q.opciones?.A) || '',
-          B: (q.opciones?.B) || '',
-          C: (q.opciones?.C) || '',
-          D: (q.opciones?.D) || '',
-          correcta: q.correcta,
-          explicacion: q.explicacion || ''
+          action: 'add', id: q.id, materia: q.materia, tema: q.tema || '', pregunta: q.pregunta,
+          A: q.opciones?.A || '', B: q.opciones?.B || '', C: q.opciones?.C || '', D: q.opciones?.D || '',
+          correcta: q.correcta, explicacion: q.explicacion || ''
         });
-        // "fire-and-forget" para no romper el flujo del editor
-        fetch(SHEETS_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}, body });
-      } catch (err) { console.warn('No se pudo sincronizar con Sheets:', err); }
+        fetch(SHEETS_URL, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8' }, body });
+      } catch(e){ console.warn('No se pudo sincronizar con Sheets:', e); }
     }
 
     let MATERIAS = {};
     function loadMaterias() {
       const saved = localStorage.getItem(LS_MATERIAS);
-      if (saved) {
-        try { MATERIAS = JSON.parse(saved) || {}; } catch { MATERIAS = {}; }
-      }
+      if (saved) { try { MATERIAS = JSON.parse(saved) || {}; } catch { MATERIAS = {}; } }
       if (!MATERIAS || Object.keys(MATERIAS).length === 0) {
         MATERIAS = {
           'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
@@ -316,36 +305,60 @@ Correcta: C"></textarea>
       saveMaterias();
     }
 
-    function loadQuestions() {
-      const saved = localStorage.getItem(LS_QUESTIONS);
-      if (saved) {
-        try { return JSON.parse(saved) || []; } catch { return []; }
+    async function loadQuestions() {
+      // Si se configuró SHEETS_URL, intentamos traer remoto primero
+      if (sheetsEnabled()) {
+        try {
+          const rows = await loadQuestionsFromSheets();
+          if (Array.isArray(rows) && rows.length) {
+            return rows;
+          }
+        } catch (e) {
+          console.warn('Fallo lectura Sheets, uso local:', e);
+        }
       }
-      // Seed de ejemplo
+      // Fallback local (comportamiento original)
+      const saved = localStorage.getItem(LS_QUESTIONS);
+      if (saved) { try { return JSON.parse(saved) || []; } catch { return []; } }
       const seed = [
-        { id: crypto.randomUUID(), materia: 'toxicologia', tema: 'Antídotos', pregunta: '¿Cuál es el antídoto de elección para intoxicación por paracetamol?', opciones: {A:'N-acetilcisteína', B:'Atropina', C:'Naloxona', D:'Fomepizol'}, correcta: 'A', explicacion: 'La N-acetilcisteína repone glutatión y detoxifica el NAPQI.' },
-        { id: crypto.randomUUID(), materia: 'oftalmologia', tema: 'Glaucoma', pregunta: '¿Qué hallazgo es típico del glaucoma crónico?', opciones: {A:'Midriasis reactiva', B:'Edema de papila', C:'Excavación papilar aumentada', D:'Hemorragia vítrea'}, correcta: 'C', explicacion: 'La pérdida de fibras del nervio óptico aumenta la excavación del disco.' }
+        { id: crypto.randomUUID(), materia: 'toxicologia', tema: 'Antídotos', pregunta: '¿Cuál es el antídoto de elección para intoxicación por paracetamol?', opciones: {A:'N-acetilcisteína', B:'Atropina', C:'Naloxona', D:'Fomepizol'}, correcta: 'A', explicacion: 'Repone glutatión y detoxifica NAPQI.' },
+        { id: crypto.randomUUID(), materia: 'oftalmologia', tema: 'Glaucoma', pregunta: '¿Qué hallazgo es típico del glaucoma crónico?', opciones: {A:'Midriasis reactiva', B:'Edema de papila', C:'Excavación papilar aumentada', D:'Hemorragia vítrea'}, correcta: 'C', explicacion: 'Aumento de la excavación por pérdida de fibras.' }
       ];
       localStorage.setItem(LS_QUESTIONS, JSON.stringify(seed));
       return seed;
     }
+
+    async function loadQuestionsFromSheets(){
+      const url = `${SHEETS_URL}?action=list`;
+      const res = await fetch(url, { method:'GET' });
+      if (!res.ok) throw new Error('No se pudo leer del Web App.');
+      const json = await res.json();
+      const mapped = json.rows.map(r => ({
+        id: r.id,
+        materia: r.materia,
+        tema: r.tema || '',
+        pregunta: r.pregunta,
+        opciones: { A: r.A||'', B: r.B||'', C: r.C||'', D: r.D||'' },
+        correcta: r.correcta,
+        explicacion: r.explicacion || ''
+      }));
+      return mapped;
+    }
+
     function saveQuestions(arr) {
-      // Detectar cuáles son nuevas para espejarlas en Sheets sin cambiar el editor
+      // Guardado local (comportamiento original)
       let prev = [];
       try { prev = JSON.parse(localStorage.getItem(LS_QUESTIONS)) || []; } catch {}
       const prevIds = new Set(prev.map(x => x.id));
-
-      // Guardado local (comportamiento original)
       localStorage.setItem(LS_QUESTIONS, JSON.stringify(arr));
-
-      // Enviar SOLO las nuevas a Sheets (si está configurado)
+      // Mirror a Sheets solo para nuevas
       const newlyAdded = (arr || []).filter(x => x && !prevIds.has(x.id));
       if (newlyAdded.length && sheetsEnabled()) {
         newlyAdded.forEach(q => sheetsAddQuestion(q));
       }
     }
 
-    let QUESTIONS = loadQuestions();
+    let QUESTIONS = [];
     loadMaterias();
     ensureMateriasFromData(QUESTIONS);
 
@@ -365,6 +378,7 @@ Correcta: C"></textarea>
     const sectionMaterias = qs('#materia-selection-container');
     const sectionQuiz = qs('#quiz-container');
     const sectionEditor = qs('#editor-container');
+    const sectionBulk = qs('#bulk-container');
 
     const quizTitle = qs('#quiz-title');
     const quizProgress = qs('#quiz-progress');
@@ -380,10 +394,11 @@ Correcta: C"></textarea>
     const listQuestions = qs('#list-questions');
     const countQuestions = qs('#count-questions');
 
-    function show(view) {
+    function show(view){
       sectionMaterias.classList.toggle('hidden', view !== 'materias');
       sectionQuiz.classList.toggle('hidden', view !== 'quiz');
       sectionEditor.classList.toggle('hidden', view !== 'editor');
+      sectionBulk.classList.toggle('hidden', view !== 'bulk');
     }
 
     function renderMateriaButtons() {
@@ -412,11 +427,7 @@ Correcta: C"></textarea>
       quizIndex = 0;
       quizCorrect = 0;
       quizPool = QUESTIONS.filter(q => q.materia === currentMateria);
-      if (quizPool.length === 0) {
-        // no hay preguntas
-        quizCardEmpty();
-        return;
-      }
+      if (quizPool.length === 0) { quizCardEmpty(); return; }
       renderQuestion();
     }
 
@@ -469,11 +480,7 @@ Correcta: C"></textarea>
 
     btnNext.addEventListener('click', () => {
       quizIndex++;
-      if (quizIndex >= quizPool.length) {
-        showSummary();
-      } else {
-        renderQuestion();
-      }
+      if (quizIndex >= quizPool.length) { showSummary(); } else { renderQuestion(); }
     });
 
     function showSummary() {
@@ -565,10 +572,7 @@ Correcta: C"></textarea>
       e.target.reset();
     });
 
-    qs('#btn-clear').addEventListener('click', () => {
-      qs('#form-question').reset();
-    });
-
+    qs('#btn-clear').addEventListener('click', () => { qs('#form-question').reset(); });
     editorMateria.addEventListener('change', renderQuestionsList);
 
     // =====================
@@ -669,13 +673,10 @@ Correcta: C"></textarea>
       const n = QUESTIONS.filter(q => q.materia === id).length;
       const msg = n > 0 ? `La materia tiene ${n} pregunta(s). Se eliminarán también. ¿Seguro?` : '¿Eliminar la materia?';
       if (!confirm(msg)) return;
-      // Eliminar preguntas de esa materia
       QUESTIONS = QUESTIONS.filter(q => q.materia !== id);
       saveQuestions(QUESTIONS);
-      // Eliminar materia
       delete MATERIAS[id];
       saveMaterias();
-      // Si estabas viéndola en quiz, volver a materias
       if (currentMateria === id) { currentMateria = null; show('materias'); }
       renderMateriaButtons();
       syncEditorMateria(Object.keys(MATERIAS)[0]);
@@ -683,133 +684,123 @@ Correcta: C"></textarea>
     });
 
     // =====================
-    // Nav
+    // Importador IA (bulk)
+    // =====================
+    function syncBulkMateria(selectId = currentMateria) {
+      const sel = document.querySelector('#bulk-materia');
+      sel.innerHTML = '';
+      Object.entries(MATERIAS).forEach(([id, conf]) => {
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = conf.name;
+        if (id === selectId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }
+
+    function normalizeGeminiItem(item, fallbackMateria = null) {
+      const materia = (item.materia?.toString().trim().toLowerCase()) || (fallbackMateria ? String(fallbackMateria).trim().toLowerCase() : '');
+      const tema = (item.tema || item.topic || '').toString().trim();
+      const pregunta = (item.pregunta || item.question || '').toString().trim();
+      let A = item.A ?? item.a; let B = item.B ?? item.b; let C = item.C ?? item.c; let D = item.D ?? item.d;
+      if (!A && Array.isArray(item.opciones || item.options)) {
+        const arr = (item.opciones || item.options).map(String);
+        [A,B,C,D] = [arr[0] || '', arr[1] || '', arr[2] || '', arr[3] || ''];
+      }
+      A = (A || '').toString().trim(); B = (B || '').toString().trim(); C = (C || '').toString().trim(); D = (D || '').toString().trim();
+      let correcta = (item.correcta || item.correct || '').toString().trim();
+      const mapTextoALetra = (txt) => {
+        if (!txt) return ''; const t = txt.toString().trim().toLowerCase();
+        if (t === A.toLowerCase()) return 'A'; if (t === B.toLowerCase()) return 'B'; if (t === C.toLowerCase()) return 'C'; if (t === D.toLowerCase()) return 'D';
+        return '';
+      };
+      let correctaNorm = correcta.toUpperCase();
+      if (!['A','B','C','D'].includes(correctaNorm)) correctaNorm = mapTextoALetra(correcta) || '';
+      const explicacion = (item.explicacion || item.explanation || '').toString().trim();
+      return { materia, tema, pregunta, opciones: {A,B,C,D}, correcta: correctaNorm, explicacion };
+    }
+    function isValidQuestion(q){ return !!(q?.pregunta && q?.opciones?.A && q?.opciones?.B && ['A','B','C','D'].includes(q.correcta)); }
+    async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
+      if (!Array.isArray(items) || items.length === 0) return { added: 0, rejected: 0 };
+      const normalized = items.map(it => normalizeGeminiItem(it, fallbackMateria));
+      const valid = []; const rejected = [];
+      for (const q of normalized) (isValidQuestion(q) ? valid : rejected).push(q);
+      if (valid.length === 0) return { added: 0, rejected: rejected.length };
+      ensureMateriasFromData(valid.map(v => ({ materia: v.materia })));
+      const withIds = valid.map(v => ({ id: crypto.randomUUID(), ...v }));
+      const merged = [...QUESTIONS, ...withIds];
+      saveQuestions(merged);
+      QUESTIONS = merged;
+      return { added: withIds.length, rejected: rejected.length };
+    }
+
+    function getApiKey() { return localStorage.getItem('openai_api_key') || ''; }
+    function setApiKey(k) { localStorage.setItem('openai_api_key', k || ''); }
+    function logBulk(html){ const box = document.querySelector('#bulk-log'); box.innerHTML = html; box.classList.remove('hidden'); }
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+    qs('#btn-save-key').addEventListener('click', () => {
+      const k = document.querySelector('#oaikey').value.trim(); setApiKey(k);
+      logBulk(`API Key guardada${k?'.':''}`);
+    });
+
+    async function callOpenAIToParse(rawText){
+      const key = getApiKey(); if (!key) throw new Error('Falta API Key. Colócala arriba.');
+      const sys = `Eres un extractor estricto. Devuelve SOLO JSON válido con este shape:\n{"items":[{"materia":"opcional","tema":"string opcional","pregunta":"string","A":"string","B":"string","C":"string opcional","D":"string opcional","correcta":"A|B|C|D o el texto exacto de la opción","explicacion":"opcional"}]}`;
+      const user = `Texto crudo a estructurar:\n\n${rawText}`;
+      const body = { model: 'gpt-4o-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: sys }, { role: 'user', content: user } ] };
+      const res = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error('Error API: ' + res.status);
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content; if (!content) throw new Error('Respuesta vacía de la IA');
+      let json; try { json = JSON.parse(content); } catch { throw new Error('La IA no devolvió JSON válido.'); }
+      if (!Array.isArray(json.items)) throw new Error('Falta array items en JSON.');
+      return json.items;
+    }
+
+    qs('#btn-bulk-validate').addEventListener('click', async () => {
+      const raw = document.querySelector('#bulk-text').value.trim();
+      if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
+      try {
+        const items = await callOpenAIToParse(raw);
+        const preview = items.slice(0,5);
+        logBulk(`<b>Análisis OK</b><br/>Total detectadas: ${items.length}<br/>Preview (5):<pre class="mt-2 p-2 bg-slate-50 rounded">${escapeHtml(JSON.stringify(preview, null, 2))}</pre>`);
+      } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
+    });
+
+    qs('#btn-bulk-analyze').addEventListener('click', async () => {
+      const raw = document.querySelector('#bulk-text').value.trim();
+      if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
+      const fallback = document.querySelector('#bulk-materia').value;
+      try {
+        logBulk('Analizando…');
+        const items = await callOpenAIToParse(raw);
+        const { added, rejected } = await addBulkQuestionsFromGemini(items, fallback);
+        logBulk(`<b>Importación completa</b><br/>Agregadas: ${added} · Rechazadas: ${rejected}`);
+        renderQuestionsList();
+      } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
+    });
+
+    // =====================
+    // Nav + Init
     // =====================
     qs('#nav-home').addEventListener('click', () => show('materias'));
     qs('#nav-editor').addEventListener('click', () => { syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]); show('editor'); });
+    qs('#nav-bulk').addEventListener('click', () => { syncBulkMateria(currentMateria || Object.keys(MATERIAS)[0]); show('bulk'); });
 
-    // =====================
     // Init
-    // =====================
-    renderMateriaButtons();
-    syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
-    show('materias');
-  // === Importador IA (bulk) ===
-    (function bulkModule(){
-      const sectionBulk = document.querySelector('#bulk-container');
-      const navBulk = document.querySelector('#nav-bulk');
-      if (navBulk) {
-        navBulk.addEventListener('click', () => {
-          // ocultar otras vistas
-          document.querySelector('#materia-selection-container').classList.add('hidden');
-          document.querySelector('#quiz-container').classList.add('hidden');
-          document.querySelector('#editor-container').classList.add('hidden');
-          sectionBulk.classList.remove('hidden');
-          syncBulkMateria(currentMateria || Object.keys(MATERIAS)[0]);
-          const k = getApiKey(); if (k) document.querySelector('#oaikey').value = k;
-        });
+    (async () => {
+      try {
+        QUESTIONS = await loadQuestions();
+      } catch(e) {
+        console.warn('Fallo carga inicial, uso local:', e);
+        QUESTIONS = [];
       }
-
-      // helpers existentes o añadidos
-      function syncBulkMateria(selectId = currentMateria) {
-        const sel = document.querySelector('#bulk-materia');
-        if (!sel) return;
-        sel.innerHTML = '';
-        Object.entries(MATERIAS).forEach(([id, conf]) => {
-          const opt = document.createElement('option');
-          opt.value = id; opt.textContent = conf.name;
-          if (id === selectId) opt.selected = true;
-          sel.appendChild(opt);
-        });
-      }
-      function normalizeGeminiItem(item, fallbackMateria = null) {
-        const materia = (item.materia?.toString().trim().toLowerCase()) || (fallbackMateria ? String(fallbackMateria).trim().toLowerCase() : '');
-        const tema = (item.tema || item.topic || '').toString().trim();
-        const pregunta = (item.pregunta || item.question || '').toString().trim();
-        let A = item.A ?? item.a; let B = item.B ?? item.b; let C = item.C ?? item.c; let D = item.D ?? item.d;
-        if (!A && Array.isArray(item.opciones || item.options)) {
-          const arr = (item.opciones || item.options).map(String);
-          [A,B,C,D] = [arr[0] || '', arr[1] || '', arr[2] || '', arr[3] || ''];
-        }
-        A = (A || '').toString().trim(); B = (B || '').toString().trim(); C = (C || '').toString().trim(); D = (D || '').toString().trim();
-        let correcta = (item.correcta || item.correct || '').toString().trim();
-        const mapTextoALetra = (txt) => {
-          if (!txt) return ''; const t = txt.toString().trim().toLowerCase();
-          if (t === A.toLowerCase()) return 'A'; if (t === B.toLowerCase()) return 'B'; if (t === C.toLowerCase()) return 'C'; if (t === D.toLowerCase()) return 'D';
-          return '';
-        };
-        let correctaNorm = correcta.toUpperCase();
-        if (!['A','B','C','D'].includes(correctaNorm)) correctaNorm = mapTextoALetra(correcta) || '';
-        const explicacion = (item.explicacion || item.explanation || '').toString().trim();
-        return { materia, tema, pregunta, opciones: {A,B,C,D}, correcta: correctaNorm, explicacion };
-      }
-      function isValidQuestion(q){ return !!(q?.pregunta && q?.opciones?.A && q?.opciones?.B && ['A','B','C','D'].includes(q.correcta)); }
-      async function addBulkQuestionsFromGemini(items, fallbackMateria = null) {
-        if (!Array.isArray(items) || items.length === 0) return { added: 0, rejected: 0 };
-        const normalized = items.map(it => normalizeGeminiItem(it, fallbackMateria));
-        const valid = []; const rejected = [];
-        for (const q of normalized) (isValidQuestion(q) ? valid : rejected).push(q);
-        if (valid.length === 0) return { added: 0, rejected: rejected.length };
-        ensureMateriasFromData(valid.map(v => ({ materia: v.materia })));
-        const withIds = valid.map(v => ({ id: crypto.randomUUID(), ...v }));
-        const merged = [...QUESTIONS, ...withIds];
-        saveQuestions(merged);
-        QUESTIONS = merged;
-        return { added: withIds.length, rejected: rejected.length };
-      }
-
-      function getApiKey() { return localStorage.getItem('openai_api_key') || ''; }
-      function setApiKey(k) { localStorage.setItem('openai_api_key', k || ''); }
-      function logBulk(html){ const box = document.querySelector('#bulk-log'); box.innerHTML = html; box.classList.remove('hidden'); }
-      function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-
-      const btnSaveKey = document.querySelector('#btn-save-key');
-      if (btnSaveKey) btnSaveKey.addEventListener('click', () => {
-        const k = document.querySelector('#oaikey').value.trim(); setApiKey(k);
-        logBulk(`API Key guardada${k?'.':''}`);
-      });
-
-      async function callOpenAIToParse(rawText){
-        const key = getApiKey(); if (!key) throw new Error('Falta API Key. Colócala arriba.');
-        const sys = `Eres un extractor estricto. Devuelve SOLO JSON válido con este shape:
-{"items":[{"materia":"opcional","tema":"string opcional","pregunta":"string","A":"string","B":"string","C":"string opcional","D":"string opcional","correcta":"A|B|C|D o el texto exacto de la opción","explicacion":"opcional"}]}`;
-        const user = `Texto crudo a estructurar:
-
-${rawText}`;
-        const body = { model: 'gpt-4o-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [ { role: 'system', content: sys }, { role: 'user', content: user } ] };
-        const res = await fetch('https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` }, body: JSON.stringify(body) });
-        if (!res.ok) throw new Error('Error API: ' + res.status);
-        const data = await res.json();
-        const content = data.choices?.[0]?.message?.content; if (!content) throw new Error('Respuesta vacía de la IA');
-        let json; try { json = JSON.parse(content); } catch { throw new Error('La IA no devolvió JSON válido.'); }
-        if (!Array.isArray(json.items)) throw new Error('Falta array items en JSON.');
-        return json.items;
-      }
-
-      const btnValidate = document.querySelector('#btn-bulk-validate');
-      if (btnValidate) btnValidate.addEventListener('click', async () => {
-        const raw = document.querySelector('#bulk-text').value.trim();
-        if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
-        try {
-          const items = await callOpenAIToParse(raw);
-          const preview = items.slice(0,5);
-          logBulk(`<b>Análisis OK</b><br/>Total detectadas: ${items.length}<br/>Preview (5):<pre class="mt-2 p-2 bg-slate-50 rounded">${escapeHtml(JSON.stringify(preview, null, 2))}</pre>`);
-        } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
-      });
-
-      const btnAnalyze = document.querySelector('#btn-bulk-analyze');
-      if (btnAnalyze) btnAnalyze.addEventListener('click', async () => {
-        const raw = document.querySelector('#bulk-text').value.trim();
-        if (!raw) return logBulk('<div class="text-rose-700">Pegá texto primero.</div>');
-        const fallback = document.querySelector('#bulk-materia').value;
-        try {
-          logBulk('Analizando…');
-          const items = await callOpenAIToParse(raw);
-          const { added, rejected } = await addBulkQuestionsFromGemini(items, fallback);
-          logBulk(`<b>Importación completa</b><br/>Agregadas: ${added} · Rechazadas: ${rejected}`);
-          if (typeof renderQuestionsList === 'function') renderQuestionsList();
-        } catch (e) { logBulk(`<div class="text-rose-700">${e.message}</div>`); }
-      });
+      ensureMateriasFromData(QUESTIONS);
+      renderMateriaButtons();
+      syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
+      syncBulkMateria(currentMateria || Object.keys(MATERIAS)[0]);
+      const savedKey = getApiKey(); if (savedKey) document.querySelector('#oaikey').value = savedKey;
+      show('materias');
     })();
   </script>
 </body>
