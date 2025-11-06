@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>App Quiz | Materias dinámicas + Google Sheets</title>
+  <title>App Quiz | Materias dinámicas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 40; }
@@ -22,15 +22,6 @@
   </header>
 
   <main class="max-w-5xl mx-auto p-4">
-    <!-- AVISO DE MODO DE ALMACENAMIENTO -->
-    <div id="storage-banner" class="mb-4 p-3 rounded-xl border bg-amber-50 text-amber-900 flex items-center justify-between">
-      <div>
-        <b>Modo de guardado:</b> <span id="storage-mode"></span>
-        <span id="sheets-url-preview" class="ml-2 text-xs text-slate-600"></span>
-      </div>
-      <button id="btn-toggle-storage" class="text-xs px-2 py-1 rounded border">Cambiar</button>
-    </div>
-
     <!-- Selección de Materia -->
     <section id="materia-selection-container" class="space-y-6">
       <div>
@@ -81,7 +72,7 @@
           <h2 class="text-3xl font-extrabold tracking-tight">Editor de preguntas</h2>
           <p class="text-slate-600">Elegí materia y cargá preguntas tipo choice.</p>
         </div>
-        <div class="flex gap-2 items-center">
+        <div class="flex gap-2">
           <select id="editor-materia" class="p-2 border rounded-lg"></select>
           <button id="btn-manage-materia" class="px-3 py-2 rounded-lg bg-slate-200 hover:bg-slate-300">Administrar materia</button>
         </div>
@@ -202,26 +193,44 @@
 
   <script type="module">
     // =====================
-    // CONFIGURACIÓN DE ALMACENAMIENTO
-    // =====================
-    const LS_SETTINGS = 'quiz_settings_v1';
-    const DEFAULT_SETTINGS = { useSheets: false, sheetsUrl: '' };
-    let SETTINGS = loadSettings();
-    function loadSettings(){
-      try { return JSON.parse(localStorage.getItem(LS_SETTINGS)) || DEFAULT_SETTINGS; } catch { return DEFAULT_SETTINGS; }
-    }
-    function saveSettings(){ localStorage.setItem(LS_SETTINGS, JSON.stringify(SETTINGS)); }
-
-    // =====================
-    // Persistencia básica (materias)
+    // Persistencia básica
     // =====================
     const LS_MATERIAS = 'materias_config';
     const LS_QUESTIONS = 'questions_data_v1';
 
+    // === OPCIONAL: Mirror a Google Sheets sin tocar el editor ===
+    // Pegá aquí tu URL de Web App (Apps Script -> despliegue tipo Web App que termina en /exec)
+    // Dejalo vacío si NO querés usar Sheets.
+    const SHEETS_URL = '';
+
+    function sheetsEnabled() { return typeof SHEETS_URL === 'string' && SHEETS_URL.startsWith('http'); }
+    async function sheetsAddQuestion(q){
+      if (!sheetsEnabled()) return;
+      try {
+        const body = new URLSearchParams({
+          action: 'add',
+          id: q.id,
+          materia: q.materia,
+          tema: q.tema || '',
+          pregunta: q.pregunta,
+          A: (q.opciones?.A) || '',
+          B: (q.opciones?.B) || '',
+          C: (q.opciones?.C) || '',
+          D: (q.opciones?.D) || '',
+          correcta: q.correcta,
+          explicacion: q.explicacion || ''
+        });
+        // "fire-and-forget" para no romper el flujo del editor
+        fetch(SHEETS_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+      } catch (err) { console.warn('No se pudo sincronizar con Sheets:', err); }
+    }
+
     let MATERIAS = {};
     function loadMaterias() {
       const saved = localStorage.getItem(LS_MATERIAS);
-      if (saved) { try { MATERIAS = JSON.parse(saved) || {}; } catch { MATERIAS = {}; } }
+      if (saved) {
+        try { MATERIAS = JSON.parse(saved) || {}; } catch { MATERIAS = {}; }
+      }
       if (!MATERIAS || Object.keys(MATERIAS).length === 0) {
         MATERIAS = {
           'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
@@ -254,89 +263,38 @@
       saveMaterias();
     }
 
-    // =====================
-    // Google Sheets API (via Apps Script Web App)
-    // =====================
-    const SHEETS_URL = SETTINGS.sheetsUrl; // pegá aquí tu URL /exec o usá el botón "Cambiar"
-
-    async function loadQuestionsFromSheets(){
-      const url = `${SHEETS_URL}?action=list`;
-      const res = await fetch(url, { method:'GET' });
-      if (!res.ok) throw new Error('No se pudo leer del Web App.');
-      const json = await res.json();
-      const mapped = json.rows.map(r => ({
-        id: r.id,
-        materia: r.materia,
-        tema: r.tema || '',
-        pregunta: r.pregunta,
-        opciones: { A: r.A||'', B: r.B||'', C: r.C||'', D: r.D||'' },
-        correcta: r.correcta,
-        explicacion: r.explicacion || ''
-      }));
-      return mapped;
-    }
-
-    async function saveQuestionToSheets(q){
-      const body = new URLSearchParams({
-        action: 'add',
-        id: q.id,
-        materia: q.materia,
-        tema: q.tema || '',
-        pregunta: q.pregunta,
-        A: q.opciones.A || '',
-        B: q.opciones.B || '',
-        C: q.opciones.C || '',
-        D: q.opciones.D || '',
-        correcta: q.correcta,
-        explicacion: q.explicacion || ''
-      });
-      const res = await fetch(SHEETS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body
-      });
-      if (!res.ok) throw new Error('No se pudo guardar en el Web App.');
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Error desconocido del Web App');
-      return true;
-    }
-
-    // =====================
-    // Capa de datos (local o sheets)
-    // =====================
-    function loadQuestionsLocal() {
+    function loadQuestions() {
       const saved = localStorage.getItem(LS_QUESTIONS);
-      if (saved) { try { return JSON.parse(saved) || []; } catch { return []; } }
+      if (saved) {
+        try { return JSON.parse(saved) || []; } catch { return []; }
+      }
+      // Seed de ejemplo
       const seed = [
-        { id: crypto.randomUUID(), materia: 'toxicologia', tema: 'Antídotos', pregunta: '¿Cuál es el antídoto de elección para intoxicación por paracetamol?', opciones: {A:'N-acetilcisteína', B:'Atropina', C:'Naloxona', D:'Fomepizol'}, correcta: 'A', explicacion: 'Repone glutatión y detoxifica NAPQI.' },
-        { id: crypto.randomUUID(), materia: 'oftalmologia', tema: 'Glaucoma', pregunta: '¿Qué hallazgo es típico del glaucoma crónico?', opciones: {A:'Midriasis reactiva', B:'Edema de papila', C:'Excavación papilar aumentada', D:'Hemorragia vítrea'}, correcta: 'C', explicacion: 'Aumento de la excavación por pérdida de fibras.' }
+        { id: crypto.randomUUID(), materia: 'toxicologia', tema: 'Antídotos', pregunta: '¿Cuál es el antídoto de elección para intoxicación por paracetamol?', opciones: {A:'N-acetilcisteína', B:'Atropina', C:'Naloxona', D:'Fomepizol'}, correcta: 'A', explicacion: 'La N-acetilcisteína repone glutatión y detoxifica el NAPQI.' },
+        { id: crypto.randomUUID(), materia: 'oftalmologia', tema: 'Glaucoma', pregunta: '¿Qué hallazgo es típico del glaucoma crónico?', opciones: {A:'Midriasis reactiva', B:'Edema de papila', C:'Excavación papilar aumentada', D:'Hemorragia vítrea'}, correcta: 'C', explicacion: 'La pérdida de fibras del nervio óptico aumenta la excavación del disco.' }
       ];
       localStorage.setItem(LS_QUESTIONS, JSON.stringify(seed));
       return seed;
     }
-    function saveQuestionsLocal(arr) { localStorage.setItem(LS_QUESTIONS, JSON.stringify(arr)); }
+    function saveQuestions(arr) {
+      // Detectar cuáles son nuevas para espejarlas en Sheets sin cambiar el editor
+      let prev = [];
+      try { prev = JSON.parse(localStorage.getItem(LS_QUESTIONS)) || []; } catch {}
+      const prevIds = new Set(prev.map(x => x.id));
 
-    let QUESTIONS = [];
+      // Guardado local (comportamiento original)
+      localStorage.setItem(LS_QUESTIONS, JSON.stringify(arr));
 
-    async function loadQuestions(){
-      if (SETTINGS.useSheets && SHEETS_URL) {
-        return await loadQuestionsFromSheets();
-      } else {
-        return loadQuestionsLocal();
+      // Enviar SOLO las nuevas a Sheets (si está configurado)
+      const newlyAdded = (arr || []).filter(x => x && !prevIds.has(x.id));
+      if (newlyAdded.length && sheetsEnabled()) {
+        newlyAdded.forEach(q => sheetsAddQuestion(q));
       }
     }
 
-    async function addQuestion(q){
-      if (SETTINGS.useSheets && SHEETS_URL) {
-        await saveQuestionToSheets(q);
-        QUESTIONS = await loadQuestionsFromSheets();
-        ensureMateriasFromData(QUESTIONS);
-      } else {
-        QUESTIONS.push(q);
-        saveQuestionsLocal(QUESTIONS);
-        ensureMateriasFromData(QUESTIONS);
-      }
-    }
+    let QUESTIONS = loadQuestions();
+    loadMaterias();
+    ensureMateriasFromData(QUESTIONS);
 
     // =====================
     // Estado global
@@ -354,9 +312,6 @@
     const sectionMaterias = qs('#materia-selection-container');
     const sectionQuiz = qs('#quiz-container');
     const sectionEditor = qs('#editor-container');
-    const storageBanner = qs('#storage-banner');
-    const storageMode = qs('#storage-mode');
-    const sheetsPreview = qs('#sheets-url-preview');
 
     const quizTitle = qs('#quiz-title');
     const quizProgress = qs('#quiz-progress');
@@ -377,27 +332,6 @@
       sectionQuiz.classList.toggle('hidden', view !== 'quiz');
       sectionEditor.classList.toggle('hidden', view !== 'editor');
     }
-
-    function renderStorageBanner(){
-      storageMode.textContent = SETTINGS.useSheets && SETTINGS.sheetsUrl ? 'Google Sheets (Web App)' : 'Local (este navegador)';
-      sheetsPreview.textContent = SETTINGS.useSheets ? `→ ${SETTINGS.sheetsUrl}` : '';
-    }
-
-    qs('#btn-toggle-storage').addEventListener('click', async () => {
-      if (!SETTINGS.useSheets) {
-        const url = prompt('Pegá aquí la URL del Web App de Google Apps Script (termina en /exec):', SETTINGS.sheetsUrl || '');
-        if (url) {
-          SETTINGS.sheetsUrl = url.trim();
-          SETTINGS.useSheets = true;
-          saveSettings();
-          location.reload();
-        }
-      } else {
-        if (confirm('Volver al modo Local (no escribirá en Sheets)?')){
-          SETTINGS.useSheets = false; saveSettings(); location.reload();
-        }
-      }
-    });
 
     function renderMateriaButtons() {
       elMateriaButtons.innerHTML = '';
@@ -425,7 +359,11 @@
       quizIndex = 0;
       quizCorrect = 0;
       quizPool = QUESTIONS.filter(q => q.materia === currentMateria);
-      if (quizPool.length === 0) { quizCardEmpty(); return; }
+      if (quizPool.length === 0) {
+        // no hay preguntas
+        quizCardEmpty();
+        return;
+      }
       renderQuestion();
     }
 
@@ -453,7 +391,7 @@
         const opt = document.createElement('button');
         opt.type = 'button';
         opt.className = 'w-full text-left p-3 rounded-xl border hover:bg-slate-50';
-        opt.innerHTML = `<span class=\"font-bold mr-2\">${letter})</span>${q.opciones[letter]}`;
+        opt.innerHTML = `<span class="font-bold mr-2">${letter})</span>${q.opciones[letter]}`;
         opt.addEventListener('click', () => handleAnswer(letter));
         quizOptions.appendChild(opt);
       });
@@ -478,7 +416,11 @@
 
     btnNext.addEventListener('click', () => {
       quizIndex++;
-      if (quizIndex >= quizPool.length) { showSummary(); } else { renderQuestion(); }
+      if (quizIndex >= quizPool.length) {
+        showSummary();
+      } else {
+        renderQuestion();
+      }
     });
 
     function showSummary() {
@@ -527,13 +469,26 @@
           <div class="text-sm text-slate-600">C) ${q.opciones.C || ''}</div>
           <div class="text-sm text-slate-600">D) ${q.opciones.D || ''}</div>
           <div class="mt-1 text-sm"><span class="font-semibold">Correcta:</span> ${q.correcta}</div>
-          ${q.explicacion ? `<div class=\"mt-1 text-sm text-slate-600\">${q.explicacion}</div>` : ''}
+          ${q.explicacion ? `<div class="mt-1 text-sm text-slate-600">${q.explicacion}</div>` : ''}
+          <div class="mt-2 flex gap-2">
+            <button data-id="${q.id}" class="btn-del px-3 py-1 rounded-lg bg-rose-600 text-white hover:bg-rose-700 text-sm">Eliminar</button>
+          </div>
         `;
         listQuestions.appendChild(card);
       });
+
+      listQuestions.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const idQ = e.currentTarget.getAttribute('data-id');
+          if (!confirm('¿Eliminar esta pregunta?')) return;
+          QUESTIONS = QUESTIONS.filter(q => q.id !== idQ);
+          saveQuestions(QUESTIONS);
+          renderQuestionsList();
+        });
+      });
     }
 
-    qs('#form-question').addEventListener('submit', async (e) => {
+    qs('#form-question').addEventListener('submit', (e) => {
       e.preventDefault();
       const materia = currentEditorMateria();
       const tema = qs('#q-topic').value.trim();
@@ -549,17 +504,18 @@
       if (!['A','B','C','D'].includes(correcta)) { alert('Seleccioná la opción correcta.'); return; }
 
       const q = { id: crypto.randomUUID(), materia, tema, pregunta, opciones: { A, B, C, D }, correcta, explicacion };
-      try {
-        await addQuestion(q);
-        renderQuestionsList();
-        if (currentMateria === materia) startQuiz();
-        e.target.reset();
-      } catch (err) {
-        alert(err.message || 'Error guardando la pregunta');
-      }
+      QUESTIONS.push(q);
+      saveQuestions(QUESTIONS);
+      ensureMateriasFromData(QUESTIONS);
+      renderQuestionsList();
+      if (currentMateria === materia) startQuiz();
+      e.target.reset();
     });
 
-    qs('#btn-clear').addEventListener('click', () => { qs('#form-question').reset(); });
+    qs('#btn-clear').addEventListener('click', () => {
+      qs('#form-question').reset();
+    });
+
     editorMateria.addEventListener('change', renderQuestionsList);
 
     // =====================
@@ -660,10 +616,13 @@
       const n = QUESTIONS.filter(q => q.materia === id).length;
       const msg = n > 0 ? `La materia tiene ${n} pregunta(s). Se eliminarán también. ¿Seguro?` : '¿Eliminar la materia?';
       if (!confirm(msg)) return;
+      // Eliminar preguntas de esa materia
       QUESTIONS = QUESTIONS.filter(q => q.materia !== id);
-      if (!SETTINGS.useSheets) saveQuestionsLocal(QUESTIONS); // en Sheets no borramos remotamente aquí
+      saveQuestions(QUESTIONS);
+      // Eliminar materia
       delete MATERIAS[id];
       saveMaterias();
+      // Si estabas viéndola en quiz, volver a materias
       if (currentMateria === id) { currentMateria = null; show('materias'); }
       renderMateriaButtons();
       syncEditorMateria(Object.keys(MATERIAS)[0]);
@@ -679,21 +638,9 @@
     // =====================
     // Init
     // =====================
-    (async function init(){
-      renderStorageBanner();
-      loadMaterias();
-      try {
-        QUESTIONS = await loadQuestions();
-      } catch (e) {
-        alert(e.message || 'No se pudieron cargar las preguntas. Paso a modo Local.');
-        SETTINGS.useSheets = false; saveSettings();
-        QUESTIONS = loadQuestionsLocal();
-      }
-      ensureMateriasFromData(QUESTIONS);
-      renderMateriaButtons();
-      syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
-      show('materias');
-    })();
+    renderMateriaButtons();
+    syncEditorMateria(currentMateria || Object.keys(MATERIAS)[0]);
+    show('materias');
   </script>
 </body>
 </html>
