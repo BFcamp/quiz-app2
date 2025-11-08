@@ -139,6 +139,10 @@
                 ← Volver a Materias
             </button>
             <h2 class="text-2xl font-bold text-gray-800 mb-6">Selecciona un Tema para <span id="current-materia-name"></span></h2>
+            
+            <!-- NUEVO: Contenedor para el botón de Modo Anki -->
+            <div id="anki-button-container" class="mb-4 max-w-sm mx-auto"></div>
+
             <div id="tema-buttons" class="space-y-4 max-w-sm mx-auto">
                 </div>
             <p id="no-temas-message" class="text-gray-500 mt-6 hidden">No hay temas guardados.</p>
@@ -322,7 +326,7 @@
         // --- CONFIGURACIÓN DE LA APP ---
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjqW9XyfSHOKWAvZ2Nsm6apsNsM6_5n-6uRik4PHLzcjiqEMJIXQ0cvC5n3RN_B4Cd/exec"; // <-- ¡PEGA TU NUEVA URL AQUÍ!
         
-        // --- NUEVO: Colores para materias dinámicas ---
+        // --- Colores para materias dinámicas ---
         const PRESET_COLORS = [
             { color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
             { color: 'bg-teal-600', hover: 'hover:bg-teal-700' },
@@ -332,14 +336,14 @@
             { color: 'bg-orange-600', hover: 'hover:bg-orange-700' }
         ];
 
-        // --- MODIFICADO: MATERIAS se vuelve variable y se carga/guarda en localStorage ---
+        // --- MATERIAS (se carga/guarda en localStorage) ---
         let MATERIAS = {
             'toxicologia': { name: 'Toxicología', color: 'bg-indigo-600', hover: 'hover:bg-indigo-700' },
             'oftalmologia': { name: 'Oftalmología', color: 'bg-teal-600', hover: 'hover:bg-teal-700' }
         };
         
         // --- VARIABLES DE ESTADO DE LA APLICACIÓN ---
-        let allQuestionsFromSheet = []; // Almacena TODAS las preguntas cargadas desde la hoja de cálculo
+        let allQuestionsFromSheet = []; 
         let preguntasMateriaCompleta = [];
         let preguntas = [];
         let currentMateria = null; 
@@ -349,6 +353,8 @@
         let seleccionActual = null;
         let respuestaComprobada = false;
         let vistaActual = 'quiz'; 
+        let quizModo = 'normal'; // NUEVO: 'normal' o 'anki'
+        let incorrectQuestionIds = {}; // NUEVO: { materiaId: [qId1, qId2, ...] }
 
         // --- REFERENCIAS DEL DOM ---
         const appTitle = document.getElementById('app-title');
@@ -357,6 +363,7 @@
         const materiaSelectionContainer = document.getElementById('materia-selection-container');
         const materiaButtons = document.getElementById('materia-buttons');
         const temaSelectionContainer = document.getElementById('tema-selection-container');
+        const ankiButtonContainer = document.getElementById('anki-button-container'); // NUEVO
         const temaButtons = document.getElementById('tema-buttons');
         const currentMateriaName = document.getElementById('current-materia-name');
         const noTemasMessage = document.getElementById('no-temas-message');
@@ -422,17 +429,58 @@
         const analizarSpinner = document.getElementById('analizar-spinner');
         const temasExistentesDatalist = document.getElementById('temas-existentes');
 
-        // --- NUEVO: Referencias del DOM para añadir materias ---
         const newMateriaContainer = document.getElementById('new-materia-container');
         const newMateriaInput = document.getElementById('new-materia-name');
         const btnAddMateria = document.getElementById('btn-add-materia');
         const materiaFeedback = document.getElementById('materia-feedback');
 
-        // --- NUEVO: FUNCIONES DE GESTIÓN DE MATERIAS ---
-        
+        // --- NUEVO: FUNCIONES DE MODO ANKI (Repaso de Errores) ---
+
         /**
-         * Muestra feedback en la pantalla de selección de materia.
+         * Carga los IDs de preguntas incorrectas desde localStorage.
          */
+        function loadIncorrectQuestions() {
+            const storedIds = localStorage.getItem('quiz_incorrect_ids');
+            if (storedIds) {
+                incorrectQuestionIds = JSON.parse(storedIds);
+            } else {
+                incorrectQuestionIds = {};
+            }
+        }
+
+        /**
+         * Guarda los IDs de preguntas incorrectas en localStorage.
+         */
+        function saveIncorrectQuestions() {
+            localStorage.setItem('quiz_incorrect_ids', JSON.stringify(incorrectQuestionIds));
+        }
+
+        /**
+         * Inicia el modo de repaso de errores (Modo Anki).
+         */
+        function selectModoAnki() {
+            quizModo = 'anki';
+            currentTema = "Repasar Errores";
+            currentTemaName.textContent = currentTema;
+
+            const idsToReview = incorrectQuestionIds[currentMateria] || [];
+            preguntas = preguntasMateriaCompleta.filter(q => idsToReview.includes(q.id));
+
+            if (preguntas.length === 0) {
+                // Esto no debería ocurrir si el botón se mostró, pero es una salvaguarda
+                showTemaSelection();
+                return;
+            }
+
+            temaSelectionContainer.classList.add('hidden');
+            quizContainer.classList.remove('hidden');
+            quizHeaderButtons.classList.remove('hidden');
+            reiniciarCuestionario(); // Esto barajará la lista de errores
+        }
+
+
+        // --- FUNCIONES DE GESTIÓN DE MATERIAS ---
+        
         function setMateriaFeedback(message, isError = false) {
              materiaFeedback.textContent = message;
              materiaFeedback.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
@@ -441,33 +489,22 @@
              } else {
                  materiaFeedback.classList.add('bg-green-100', 'text-green-700');
              }
-             // Ocultar mensaje después de 3 segundos
              setTimeout(() => materiaFeedback.classList.add('hidden'), 3000);
         }
 
-        /**
-         * Carga las materias desde localStorage al iniciar la app.
-         */
         function loadMaterias() {
             const storedMaterias = localStorage.getItem('quiz_materias');
             if (storedMaterias) {
                 MATERIAS = JSON.parse(storedMaterias);
             } else {
-                // Si no hay nada guardado, usa el default y guárdalo
                 localStorage.setItem('quiz_materias', JSON.stringify(MATERIAS));
             }
         }
 
-        /**
-         * Guarda el objeto MATERIAS actual en localStorage.
-         */
         function saveMaterias() {
             localStorage.setItem('quiz_materias', JSON.stringify(MATERIAS));
         }
 
-        /**
-         * Añade una nueva materia desde el input del usuario.
-         */
         function addNewMateria() {
             const name = newMateriaInput.value.trim();
             if (name.length < 3) {
@@ -475,11 +512,10 @@
                 return;
             }
             
-            // Genera un ID simple (ej: 'Cardiología' -> 'cardiologia')
             const id = name.toLowerCase()
-                           .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quita acentos
-                           .replace(/[^a-z0-9\s]/g, '') // Quita símbolos
-                           .replace(/\s+/g, '-'); // Reemplaza espacios con guiones
+                           .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+                           .replace(/[^a-z0-9\s]/g, '') 
+                           .replace(/\s+/g, '-'); 
 
             if (!id) {
                 setMateriaFeedback("Nombre de materia no válido.", true);
@@ -491,7 +527,6 @@
                 return;
             }
             
-            // Asignar un color del preset
             const colorIndex = Object.keys(MATERIAS).length % PRESET_COLORS.length;
             
             MATERIAS[id] = { 
@@ -500,7 +535,7 @@
             };
             
             saveMaterias();
-            showMateriaSelection(); // Re-renderizar la lista de botones
+            showMateriaSelection(); 
             newMateriaInput.value = '';
             setMateriaFeedback(`¡Materia "${name}" añadida!`, false);
         }
@@ -525,29 +560,20 @@
         // == INICIO DE LA MODIFICACIÓN (JSONP) ==
         // =================================================================
 
-        /**
-         * FUNCIÓN CALLBACK DE ÉXITO (JSONP)
-         * Esta función es llamada por el script de Google cuando los datos se cargan.
-         */
         window.handleQuizData = (rawData) => {
             try {
                 if (rawData.status === 'error') {
-                    // Maneja errores DEL LADO DEL SERVIDOR (ej: hoja no encontrada)
                     throw new Error(rawData.message);
                 }
 
-                // Filtra y procesa los datos como lo hacías antes
                 allQuestionsFromSheet = rawData.filter(q => q && q.pregunta && q.materia && q.tema && q.id != null && typeof q.correctaindex === 'number' && Array.isArray(q.opciones) && q.opciones.length > 0);
 
                 localStorage.setItem('quiz_data_backup', JSON.stringify(allQuestionsFromSheet));
                 
-                // --- NUEVO: Sincronizar materias desde la hoja ---
-                // Revisa si hay materias en las preguntas que no existan en el objeto MATERIAS local
                 let materiasUpdated = false;
                 allQuestionsFromSheet.forEach(q => {
                     const materiaId = q.materia;
                     if (materiaId && !MATERIAS[materiaId]) {
-                        // Genera un nombre legible desde el ID (ej: 'cardiologia' -> 'Cardiologia')
                         const materiaName = materiaId.charAt(0).toUpperCase() + materiaId.slice(1);
                         const colorIndex = Object.keys(MATERIAS).length % PRESET_COLORS.length;
                         MATERIAS[materiaId] = { name: materiaName, ...PRESET_COLORS[colorIndex] };
@@ -555,41 +581,29 @@
                     }
                 });
                 if (materiasUpdated) {
-                    saveMaterias(); // Guardar las materias recién descubiertas en localStorage
+                    saveMaterias(); 
                 }
-                // --- FIN DE LA SINCRONIZACIÓN DE MATERIAS ---
 
-                // Actualiza la UI de carga
                 progressBar.style.width = '100%';
                 loadingMessage.textContent = `Paso 4: ¡Encontradas ${allQuestionsFromSheet.length} preguntas! Organizando...`;
                 console.log(`Cargadas ${allQuestionsFromSheet.length} preguntas válidas en total desde Google Sheets.`);
                 updateConnectionStatus('online');
                 
-                // Avanza a la siguiente pantalla
                 setTimeout(showMateriaSelection, 1200);
 
             } catch (error) {
                 console.error("Error al procesar datos de JSONP:", error);
                 loadingMessage.textContent = `Error al procesar datos: ${error.message}`;
-                // Intenta cargar desde local si falla el procesamiento
                 loadFromLocalBackup();
             }
         };
 
-        /**
-         * FUNCIÓN CALLBACK DE ERROR (JSONP)
-         * Se llama si el script de JSONP falla en cargarse (ej: 404, red caída, URL incorrecta)
-         */
         window.handleQuizError = (error) => {
              console.error("Error al inicializar la aplicación (JSONP failed):", error);
              loadingMessage.textContent = "Error al conectar con la nube. Cargando desde guardado local...";
              loadFromLocalBackup();
         };
 
-        /**
-         * FUNCIÓN DE RESPALDO
-         * Carga los datos desde localStorage si la conexión falla.
-         */
         function loadFromLocalBackup() {
             updateConnectionStatus('offline');
             const localData = localStorage.getItem('quiz_data_backup');
@@ -602,10 +616,6 @@
             setTimeout(() => showMateriaSelection(), 2000);
         }
 
-        /**
-         * FUNCIÓN initApp (MODIFICADA)
-         * Ahora usa JSONP (inyección de script) en lugar de fetch().
-         */
         async function initApp() {
             updateConnectionStatus('connecting');
             loadingScreen.classList.remove('hidden');
@@ -615,26 +625,13 @@
             try {
                 loadingMessage.textContent = 'Paso 2: Conectando con la base de datos...';
                 
-                // --- INICIO DEL CAMBIO (JSONP) ---
-                
-                // 1. Crear un ID único para el script
                 const scriptId = 'jsonp-loader-' + Date.now();
-                
-                // 2. Crear la etiqueta <script>
                 const script = document.createElement('script');
-                
-                // 3. Establecer la URL con el callback. 
-                //    Usamos 'handleQuizData' como el nombre de la función global
                 const cacheBust = new Date().getTime();
                 
-                // AQUÍ ES DONDE SE AÑADE EL PARÁMETRO 'callback'
                 script.src = `${SCRIPT_URL}?callback=handleQuizData&cachebust=${cacheBust}`;
                 script.id = scriptId;
-                
-                // 4. Manejar errores de carga del script (ej: red caída, 404, URL incorrecta)
                 script.onerror = handleQuizError;
-                
-                // 5. Inyectar el script en la página. Esto dispara el doGet en Google.
                 document.body.appendChild(script);
                 
                 loadingMessage.textContent = 'Paso 3: Conexión exitosa. Buscando preguntas...';
@@ -642,16 +639,11 @@
                 progressContainer.classList.remove('hidden');
                 progressBar.style.width = '50%';
                 
-                // 6. Limpiar el script después de que se use
                 script.onload = () => {
                     document.getElementById(scriptId)?.remove();
                 };
                 
-                // --- FIN DEL CAMBIO ---
-
             } catch (error) {
-                // Este catch ahora solo agarra errores de la inyección del script,
-                // la lógica de datos real está en 'handleQuizData' y 'handleQuizError'.
                 handleQuizError(error);
             }
         }
@@ -662,11 +654,9 @@
 
 
         async function saveAllQuestionsToSheet(questionsList) {
-            // Guardado Local Inmediato
             localStorage.setItem('quiz_data_backup', JSON.stringify(questionsList));
             allQuestionsFromSheet = questionsList;
             
-            // Re-filtra las preguntas de la materia actual en caso de que hayan cambiado
             if (currentMateria) {
                 preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
                 renderGestionPreguntas();
@@ -675,8 +665,6 @@
 
             updateConnectionStatus('connecting');
             try {
-                // El método de escritura (POST) con 'no-cors' SÍ funciona y está bien.
-                // No lo cambiamos.
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -701,7 +689,6 @@
         function renderGestionPreguntas() {
             gestionPreguntasContainer.innerHTML = '';
             
-            // Asegurarse de que preguntasMateriaCompleta esté actualizada
             if (currentMateria) {
                  preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
             } else {
@@ -838,9 +825,9 @@
         async function deleteQuestion(event) {
             const questionId = parseInt(event.target.dataset.id);
             
-            // Reemplazamos confirm() con una simple pregunta, idealmente sería un modal custom
-            if (!window.prompt("Para confirmar la eliminación, escribe 'ELIMINAR'")) {
-                 if (promptResult.toLowerCase() !== 'eliminar') return;
+            const promptResult = window.prompt("Para confirmar la eliminación, escribe 'ELIMINAR'");
+            if (promptResult === null || promptResult.toLowerCase() !== 'eliminar') {
+                 return;
             }
 
             const updatedList = allQuestionsFromSheet.filter(q => q.id !== questionId);
@@ -875,9 +862,8 @@
 
             appTitle.textContent = "Selección de Materia";
             materiaButtons.innerHTML = ''; 
-            materiaFeedback.classList.add('hidden'); // Ocultar feedback al recargar
+            materiaFeedback.classList.add('hidden'); 
             
-            // Renderizar botones desde el objeto MATERIAS (que ahora es dinámico)
             Object.keys(MATERIAS).forEach(materiaId => {
                 const config = MATERIAS[materiaId];
                 const button = document.createElement('button');
@@ -892,10 +878,9 @@
         }
 
         function selectMateria(materiaId) {
-            // Verificar si la materia seleccionada aún existe (por si acaso)
             if (!MATERIAS[materiaId]) {
                 setMateriaFeedback("Error: Esa materia ya no existe.", true);
-                loadMaterias(); // Recargar desde localStorage
+                loadMaterias(); 
                 showMateriaSelection();
                 return;
             }
@@ -924,7 +909,22 @@
             
             temaSelectionContainer.classList.remove('hidden');
             temaButtons.innerHTML = '';
+            ankiButtonContainer.innerHTML = ''; // Limpiar el botón Anki
             
+            // --- NUEVO: Lógica del botón Anki ---
+            const incorrectCount = (incorrectQuestionIds[currentMateria] || []).length;
+            if (incorrectCount > 0) {
+                const ankiButton = document.createElement('button');
+                ankiButton.innerHTML = `Repasar Errores (Modo Anki) <span class="text-sm font-normal">(${incorrectCount} preguntas)</span>`;
+                ankiButton.classList.add(
+                    'w-full', 'py-4', 'px-6', 'text-white', 'font-bold', 'rounded-lg', 'shadow-lg',
+                    'bg-orange-500', 'hover:bg-orange-600', 'transition', 'duration-150', 'ease-in-out', 'text-left', 'flex', 'justify-between', 'items-center'
+                );
+                ankiButton.addEventListener('click', selectModoAnki);
+                ankiButtonContainer.appendChild(ankiButton);
+            }
+            // --- FIN Lógica Anki ---
+
             const temasUnicos = getUniqueThemes();
             const materiaConfig = MATERIAS[currentMateria];
 
@@ -948,6 +948,7 @@
         }
         
         function selectTema(tema) {
+            quizModo = 'normal'; // Establecer modo normal
             currentTema = tema;
             currentTemaName.textContent = tema;
             temaSelectionContainer.classList.add('hidden');
@@ -1005,7 +1006,6 @@
         }
         
         function getUniqueThemes() {
-             // Asegurarse de que preguntasMateriaCompleta esté actualizada
             preguntasMateriaCompleta = allQuestionsFromSheet.filter(q => q.materia === currentMateria);
             return [...new Set(preguntasMateriaCompleta.map(p => (p.tema || '').trim()).filter(t => t))].sort();
         }
@@ -1120,7 +1120,6 @@
                 return;
             }
             
-            // Asegurarse de que currentMateria (el ID) y el nombre están disponibles
             if (!currentMateria || !MATERIAS[currentMateria]) {
                 setFeedback("Error: No se ha seleccionado una materia válida.", true);
                 return;
@@ -1171,13 +1170,12 @@
 
                 if (Array.isArray(newQuestions) && newQuestions.length > 0) {
                     
-                    // Asignar materia (ID) e ID a las nuevas preguntas
                     const highestId = allQuestionsFromSheet.reduce((max, q) => Math.max(max, q.id), 0);
                     let currentId = highestId + 1;
                     
                     const questionsToAdd = newQuestions.map(q => ({
                         ...q,
-                        materia: currentMateria, // Aquí se asigna el ID de la materia actual
+                        materia: currentMateria, 
                         id: currentId++
                     }));
                     
@@ -1234,12 +1232,10 @@
 
                     if(success) {
                         if(isFromQuiz) {
-                             // Actualizar UI del quiz
                              preguntas[indicePreguntaActual] = validatedQ;
                              justificacionTexto.textContent = validatedQ.justificacion;
                              feedbackEl.textContent = '¡Verificado y actualizado!';
                         } else {
-                            // Actualizar UI del modal
                             editCorrectaIndex.value = validatedQ.correctaindex;
                             editJustificacion.value = validatedQ.justificacion;
                             feedbackEl.textContent = '¡Verificado! Haz clic en Guardar para confirmar.';
@@ -1258,7 +1254,7 @@
         }
         
         async function validateAndRefineQuestions(questions) {
-             if (!currentMateria || !MATERIAS[currentMateria]) return; // Guard clause
+             if (!currentMateria || !MATERIAS[currentMateria]) return; 
              const materiaName = MATERIAS[currentMateria].name;
              const questionsJsonString = JSON.stringify(questions.map(({id, ...q}) => q));
              const systemPrompt = `Eres un experto revisor. Tu tarea es: 1. NO MODIFIQUES 'pregunta' ni 'opciones'. Deben permanecer idénticas. 2. Verifica la 'correctaindex' y corrígela si es necesario. 3. Mejora la 'justificacion'. 4. Devuelve SÓLO la matriz JSON.`;
@@ -1303,7 +1299,7 @@
         }
 
         async function structurePastedText(rawText, tema) {
-             if (!currentMateria || !MATERIAS[currentMateria]) return; // Guard clause
+             if (!currentMateria || !MATERIAS[currentMateria]) return; 
              const materiaName = MATERIAS[currentMateria].name;
              const systemPrompt = `Convierte el siguiente texto de preguntas de ${materiaName} en una matriz JSON con los campos: "pregunta", "opciones" (array de 4 strings), "correctaindex" (integer 0-3), y "justificacion". El campo "tema" para TODAS las preguntas debe ser "${tema}". Responde SÓLO con la matriz JSON.`;
              const userQuery = `Texto a procesar:\n\n${rawText}`;
@@ -1371,8 +1367,8 @@
 
                 const newQuestions = newQuestionsRaw.map(q => ({
                     ...q,
-                    materia: currentMateria, // Asignar el ID de la materia actual
-                    id: currentId++ // Simple unique ID
+                    materia: currentMateria, 
+                    id: currentId++ 
                 }));
 
                 const allQuestions = [...allQuestionsFromSheet, ...newQuestions];
@@ -1416,7 +1412,11 @@
             btnSiguiente.classList.replace('text-white', 'text-gray-700');
 
             if (preguntas.length === 0) {
-                 preguntaTexto.textContent = `No hay preguntas cargadas para el tema "${currentTema}". Ve al Editor para añadir preguntas.`;
+                 if (quizModo === 'anki') {
+                     preguntaTexto.textContent = "¡Felicidades! Has repasado todas tus preguntas incorrectas.";
+                 } else {
+                     preguntaTexto.textContent = `No hay preguntas cargadas para el tema "${currentTema}". Ve al Editor para añadir preguntas.`;
+                 }
                  contadorPregunta.textContent = "0 preguntas";
                  totalPreguntasSpan.textContent = "0";
                  opcionesContainer.innerHTML = '';
@@ -1472,9 +1472,25 @@
                 puntajeSpan.textContent = puntaje;
                 feedbackTexto.textContent = "✅ ¡Respuesta Correcta!";
                 feedbackTexto.className = 'p-3 rounded-lg text-center font-bold bg-green-100 text-green-700';
+                
+                // NUEVO (Anki): Si es correcta, la quita de la lista de errores
+                if (incorrectQuestionIds[currentMateria] && incorrectQuestionIds[currentMateria].includes(pregunta.id)) {
+                    incorrectQuestionIds[currentMateria] = incorrectQuestionIds[currentMateria].filter(id => id !== pregunta.id);
+                    saveIncorrectQuestions();
+                }
+
             } else {
                 feedbackTexto.textContent = "❌ Respuesta Incorrecta. La opción correcta está marcada en verde.";
                 feedbackTexto.className = 'p-3 rounded-lg text-center font-bold bg-red-100 text-red-700';
+
+                // NUEVO (Anki): Si es incorrecta, la añade a la lista de errores
+                if (!incorrectQuestionIds[currentMateria]) {
+                    incorrectQuestionIds[currentMateria] = [];
+                }
+                if (!incorrectQuestionIds[currentMateria].includes(pregunta.id)) {
+                    incorrectQuestionIds[currentMateria].push(pregunta.id);
+                    saveIncorrectQuestions();
+                }
             }
             feedbackContainer.classList.remove('hidden-transition', 'hidden');
             feedbackContainer.classList.add('visible-transition');
@@ -1502,7 +1518,9 @@
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[i], array[j]];
+                // --- ¡CORRECCIÓN DEL BUG! ---
+                // La línea original era [array[i], array[j]] = [array[i], array[j]];
+                [array[i], array[j]] = [array[j], array[i]];
             }
         }
 
@@ -1537,7 +1555,7 @@
             resultadosContainer.classList.add('hidden');
             quizContainer.classList.remove('hidden');
             quizHeaderButtons.classList.remove('hidden');
-            if (preguntas.length > 0) shuffleArray(preguntas);
+            if (preguntas.length > 0) shuffleArray(preguntas); // Ahora sí funciona
             cargarPregunta();
         }
 
@@ -1564,14 +1582,13 @@
             alternarVista();
         });
 
-        // --- NUEVO: Listener para añadir materia ---
         btnAddMateria.addEventListener('click', addNewMateria);
 
 
         // --- INICIO DE LA APLICACIÓN ---
         window.onload = function() {
-            loadMaterias(); // Cargar materias desde localStorage ANTES de iniciar
-            // Se asegura que las funciones globales estén listas antes de llamar a initApp
+            loadMaterias(); 
+            loadIncorrectQuestions(); // NUEVO: Cargar errores guardados
             initApp();
         }
     </script>
