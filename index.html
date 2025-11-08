@@ -667,10 +667,13 @@
             try {
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
+                    // mode: 'no-cors', // <-- ELIMINADO: Esta línea causaba el fallo silencioso.
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(questionsList)
                 });
+                
+                // AHORA PODEMOS VER LA RESPUESTA REAL
+                // (Aunque no la leamos, el navegador completará la solicitud correctamente)
                 
                 console.log("Petición de guardado enviada a Google Sheets.");
                 updateConnectionStatus('online');
@@ -1594,6 +1597,3 @@
     </script>
 </body>
 </html>
-
-
-
